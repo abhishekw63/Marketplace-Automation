@@ -21,8 +21,15 @@ class POReportApp:
     SMTP_PORT = 587
     DEFAULT_RECIPIENT = "abhishek.wagh@reneecosmetics.in"
     
+    # CC Recipients (add email addresses here, one per line)
+    CC_RECIPIENTS = [
+        "onlineb2b@reneecosmetics.in",
+        # "email2@example.com",
+        # "email3@example.com",
+    ]
+    
     # Expiration Configuration (Set this date to when you want the app to expire)
-    EXPIRY_DATE = "12-02-2026"  # Format: DD-MM-YYYY
+    EXPIRY_DATE = "31-03-2026"  # Format: DD-MM-YYYY
     
     def __init__(self, root):
         """Initialize the main window and configure the UI."""
@@ -132,6 +139,11 @@ class POReportApp:
             message = EmailMessage()
             message["From"] = self.EMAIL_SENDER
             message["To"] = self.DEFAULT_RECIPIENT
+            
+            # Add CC recipients if any are configured
+            if self.CC_RECIPIENTS:
+                message["Cc"] = ", ".join(self.CC_RECIPIENTS)
+            
             message["Subject"] = f"📊 Purchase Order Summary: {marketplace} - {datetime.now().strftime('%d-%m-%Y')}"
             
             # Build HTML email body
@@ -145,7 +157,13 @@ class POReportApp:
             server = smtplib.SMTP(self.SMTP_SERVER, self.SMTP_PORT)
             server.starttls()
             server.login(self.EMAIL_SENDER, self.EMAIL_PASSWORD)
-            server.send_message(message)
+            
+            # Prepare all recipients (TO + CC)
+            all_recipients = [self.DEFAULT_RECIPIENT]
+            if self.CC_RECIPIENTS:
+                all_recipients.extend(self.CC_RECIPIENTS)
+            
+            server.send_message(message, to_addrs=all_recipients)
             server.quit()
             
             return True
@@ -269,6 +287,10 @@ body {{
     <td>Total Order Value:</td>
     <td>₹ {self.format_indian(total_value)}</td>
 </tr>
+<tr>
+    <td>SKU Data Available:</td>
+    <td>{'✅ YES - ' + str(len(sku_df)) + ' SKUs' if has_sku else '❌ NO (' + marketplace + ' format)'}</td>
+</tr>
 </table>
 """
         
@@ -281,8 +303,8 @@ body {{
                 html += f"<th>{col}</th>"
             html += "</tr>\n"
             
-            # Add table rows (limit to first 50 rows)
-            for idx, row in tracker_df.head(50).iterrows():
+            # Add table rows 
+            for idx, row in tracker_df.iterrows():
                 html += "<tr>"
                 for col in tracker_df.columns:
                     cell_value = row[col]
@@ -305,8 +327,6 @@ body {{
                     html += f"<td>{cell_value}</td>"
                 html += "</tr>\n"
             
-            if len(tracker_df) > 50:
-                html += f'<tr><td colspan="{len(tracker_df.columns)}" style="text-align: center; font-style: italic; color: #999;">... and {len(tracker_df) - 50} more rows</td></tr>\n'
             
             html += "</table>"
         
@@ -321,7 +341,7 @@ body {{
             html += "</tr>\n"
             
             # Add SKU table rows (limit to first 50 rows)
-            for idx, row in sku_df.head(50).iterrows():
+            for idx, row in sku_df.iterrows():
                 html += "<tr>"
                 for col in sku_df.columns:
                     cell_value = row[col]
@@ -334,8 +354,6 @@ body {{
                     html += f"<td>{cell_value}</td>"
                 html += "</tr>\n"
             
-            if len(sku_df) > 50:
-                html += f'<tr><td colspan="{len(sku_df.columns)}" style="text-align: center; font-style: italic; color: #999;">... and {len(sku_df) - 50} more SKUs</td></tr>\n'
             
             html += "</table>"
         
@@ -350,10 +368,16 @@ body {{
         
         return html
     
-    def show_summary_popup(self, df, marketplace):
+    def show_summary_popup(self, df, marketplace, has_sku_data=False, sku_count=0):
         """
         Show summary popup for the given dataframe.
         Works for Blinkit, Flipkart, and Swiggy.
+        
+        Args:
+            df: DataFrame with PO data
+            marketplace: Name of the marketplace
+            has_sku_data: Boolean indicating if SKU data is available
+            sku_count: Number of SKUs in the report
         """
         if marketplace == "Blinkit":
             total_pos = df['po_number'].nunique()
@@ -378,12 +402,19 @@ body {{
         min_date_str = min_date.strftime('%d-%m-%Y') if hasattr(min_date, 'strftime') else str(min_date)
         max_date_str = max_date.strftime('%d-%m-%Y') if hasattr(max_date, 'strftime') else str(max_date)
         
+        # Build SKU status line
+        if has_sku_data:
+            sku_status = f"SKU Data: ✅ Available ({sku_count} SKUs)"
+        else:
+            sku_status = f"SKU Data: ❌ Not Available ({marketplace} format)"
+        
         summary_text = (
             f"📊 SUMMARY REPORT 📊\n\n"
             f"Total POs: {total_pos}\n"
             f"Order Date Range: {min_date_str} to {max_date_str}\n"
             f"Total Units Ordered: {self.format_indian(total_units)}\n"
-            f"Total Order Value: ₹ {self.format_indian(total_value)}"
+            f"Total Order Value: ₹ {self.format_indian(total_value)}\n"
+            f"{sku_status}"
         )
         messagebox.showinfo("PO Summary", summary_text)
         
@@ -454,13 +485,19 @@ body {{
                             col_letter = get_column_letter(col[0].column)
                             ws.column_dimensions[col_letter].width = max_length + 2
                 
-                self.show_summary_popup(df, marketplace)
+                self.show_summary_popup(df, marketplace, has_sku_data=True, sku_count=len(sku_summary))
                 messagebox.showinfo("Success", f"Report created successfully at:\n{output_file}")
                 
                 # Ask if user wants to send email BEFORE opening file
                 if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
                     if self.send_email_summary(marketplace, self.last_summary, tracker_summary, sku_summary):
-                        messagebox.showinfo("Email Sent", f"Summary sent successfully to {self.DEFAULT_RECIPIENT}")
+                        # Build recipient info for success message
+                        recipient_info = f"To: {self.DEFAULT_RECIPIENT}"
+                        if self.CC_RECIPIENTS:
+                            cc_list = "\n".join([f"  • {email}" for email in self.CC_RECIPIENTS])
+                            recipient_info += f"\n\nCC:\n{cc_list}"
+                        
+                        messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
                 
                 if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
                     os.startfile(output_file)
@@ -520,13 +557,19 @@ body {{
                         col_letter = get_column_letter(col[0].column)
                         ws.column_dimensions[col_letter].width = max_length + 2
                 
-                self.show_summary_popup(tracker_summary, marketplace)
+                self.show_summary_popup(tracker_summary, marketplace, has_sku_data=False, sku_count=0)
                 messagebox.showinfo("Success", f"Report created successfully at:\n{output_file}")
                 
                 # Ask if user wants to send email BEFORE opening file (No SKU for Flipkart)
                 if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
                     if self.send_email_summary(marketplace, self.last_summary, tracker_summary, None):
-                        messagebox.showinfo("Email Sent", f"Summary sent successfully to {self.DEFAULT_RECIPIENT}")
+                        # Build recipient info for success message
+                        recipient_info = f"To: {self.DEFAULT_RECIPIENT}"
+                        if self.CC_RECIPIENTS:
+                            cc_list = "\n".join([f"  • {email}" for email in self.CC_RECIPIENTS])
+                            recipient_info += f"\n\nCC:\n{cc_list}"
+                        
+                        messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
                 
                 if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
                     os.startfile(output_file)
@@ -693,7 +736,7 @@ body {{
                     wb_path = output_folder / f"{po_number}.xlsx"
                     wb.save(wb_path)
                 
-                self.show_summary_popup(tracker_summary, marketplace)
+                self.show_summary_popup(tracker_summary, marketplace, has_sku_data=True, sku_count=len(sku_summary))
                 
                 messagebox.showinfo(
                     "Success", 
@@ -704,7 +747,13 @@ body {{
                 # Ask if user wants to send email BEFORE opening files
                 if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
                     if self.send_email_summary(marketplace, self.last_summary, tracker_summary, sku_summary):
-                        messagebox.showinfo("Email Sent", f"Summary sent successfully to {self.DEFAULT_RECIPIENT}")
+                        # Build recipient info for success message
+                        recipient_info = f"To: {self.DEFAULT_RECIPIENT}"
+                        if self.CC_RECIPIENTS:
+                            cc_list = "\n".join([f"  • {email}" for email in self.CC_RECIPIENTS])
+                            recipient_info += f"\n\nCC:\n{cc_list}"
+                        
+                        messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
                 
                 if messagebox.askyesno("Open File", "Do you want to open the main Excel report?"):
                     os.startfile(main_output_file)
