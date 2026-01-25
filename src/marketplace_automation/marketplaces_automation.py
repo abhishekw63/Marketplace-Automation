@@ -10,7 +10,7 @@ from email.message import EmailMessage
 class POReportApp:
     """
     A GUI application to generate Purchase Order (PO) reports for different marketplaces.
-    Currently supports: Blinkit, Flipkart, Swiggy
+    Supports: Blinkit, Flipkart, Swiggy, Zepto (coming soon)
     Includes email functionality to send summary reports.
     """
     
@@ -28,6 +28,8 @@ class POReportApp:
         self.root.geometry("460x320")
         self.root.resizable(False, False)
         self.marketplace_var = tk.StringVar(value="Blinkit")
+        self.last_summary = {}
+        self.last_sku_data = None
         self._build_ui()
     
     def _build_ui(self):
@@ -76,7 +78,7 @@ class POReportApp:
             parts.insert(0, remaining)
         return ','.join(parts) + ',' + last3
     
-    def send_email_summary(self, marketplace, summary_data, tracker_df=None):
+    def send_email_summary(self, marketplace, summary_data, tracker_df=None, sku_df=None):
         """
         Send email summary with PO report details.
         
@@ -84,6 +86,7 @@ class POReportApp:
             marketplace: Name of the marketplace
             summary_data: Dictionary containing summary statistics
             tracker_df: DataFrame with tracker data (optional)
+            sku_df: DataFrame with SKU demand data (optional)
         """
         try:
             # Create email message
@@ -93,7 +96,7 @@ class POReportApp:
             message["Subject"] = f"📊 Purchase Order Summary: {marketplace} - {datetime.now().strftime('%d-%m-%Y')}"
             
             # Build HTML email body
-            html_body = self._build_email_html(marketplace, summary_data, tracker_df)
+            html_body = self._build_email_html(marketplace, summary_data, tracker_df, sku_df)
             
             # Set email content
             message.set_content("Please view this email in an HTML-compatible email client.")
@@ -112,8 +115,8 @@ class POReportApp:
             messagebox.showerror("Email Error", f"Failed to send email:\n{str(e)}")
             return False
     
-    def _build_email_html(self, marketplace, summary_data, tracker_df):
-        """Build HTML email body with summary and table data."""
+    def _build_email_html(self, marketplace, summary_data, tracker_df, sku_df=None):
+        """Build HTML email body with summary, tracker, and SKU data."""
         
         # Extract summary data
         total_pos = summary_data.get('total_pos', 0)
@@ -121,6 +124,9 @@ class POReportApp:
         total_value = summary_data.get('total_value', 0)
         min_date = summary_data.get('min_date', 'N/A')
         max_date = summary_data.get('max_date', 'N/A')
+        
+        # DEBUG: Force check
+        has_sku = sku_df is not None and not sku_df.empty
         
         html = f"""
 <html>
@@ -171,6 +177,26 @@ body {{
 .data-table tr:nth-child(even) {{
     background-color: #f9f9f9;
 }}
+.sku-table {{
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}}
+.sku-table th {{
+    background-color: #70AD47;
+    color: white;
+    padding: 10px;
+    text-align: center;
+    border: 1px solid #ddd;
+}}
+.sku-table td {{
+    padding: 8px;
+    text-align: center;
+    border: 1px solid #ddd;
+}}
+.sku-table tr:nth-child(even) {{
+    background-color: #f9f9f9;
+}}
 .footer {{
     text-align: center;
     color: #666;
@@ -204,20 +230,24 @@ body {{
     <td>Total Order Value:</td>
     <td>₹ {self.format_indian(total_value)}</td>
 </tr>
+<tr>
+    <td>SKU Data Available:</td>
+    <td>{'YES - ' + str(len(sku_df)) + ' SKUs (All shown below)' if has_sku else 'NO'}</td>
+</tr>
 </table>
 """
         
-        # Add table data if tracker_df is provided
+        # Add PO Details table if tracker_df is provided
         if tracker_df is not None and not tracker_df.empty:
-            html += '<h3 style="margin: 20px 0 10px 0;">PO Details</h3>\n<table class="data-table">\n<tr>'
+            html += '<h3 style="margin: 20px 0 10px 0;">PO Details (All POs)</h3>\n<table class="data-table">\n<tr>'
             
             # Add table headers
             for col in tracker_df.columns:
                 html += f"<th>{col}</th>"
             html += "</tr>\n"
             
-            # Add table rows (limit to first 50 rows)
-            for idx, row in tracker_df.head(100).iterrows():
+            # Add table rows (ALL rows)
+            for idx, row in tracker_df.iterrows():
                 html += "<tr>"
                 for col in tracker_df.columns:
                     cell_value = row[col]
@@ -241,8 +271,32 @@ body {{
                     html += f"<td>{cell_value}</td>"
                 html += "</tr>\n"
             
-            if len(tracker_df) > 50:
-                html += f'<tr><td colspan="{len(tracker_df.columns)}" style="text-align: center; font-style: italic; color: #999;">... and {len(tracker_df) - 50} more rows</td></tr>\n'
+            html += "</table>"
+        
+        # Add SKU Demand table - SIMPLIFIED CHECK
+        if has_sku:
+            html += '<h3 style="margin: 20px 0 10px 0;">SKU Demand (All SKUs - Sorted by Units)</h3>\n<table class="sku-table">\n<tr>'
+            
+            # Add SKU table headers
+            for col in sku_df.columns:
+                # Capitalize column names for display
+                display_col = str(col).replace('_', ' ').title()
+                html += f"<th>{display_col}</th>"
+            html += "</tr>\n"
+            
+            # Add SKU table rows (ALL rows)
+            for idx, row in sku_df.iterrows():
+                html += "<tr>"
+                for col in sku_df.columns:
+                    cell_value = row[col]
+                    # Format numbers with Indian formatting if it's the units column
+                    if 'unit' in str(col).lower() or 'qty' in str(col).lower():
+                        try:
+                            cell_value = self.format_indian(int(cell_value))
+                        except:
+                            pass
+                    html += f"<td>{cell_value}</td>"
+                html += "</tr>\n"
             
             html += "</table>"
         
@@ -320,8 +374,8 @@ body {{
                 df = pd.read_csv(file_path)
                 df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
                 df['po_number'] = df['po_number'].astype(str).str.replace(r'\.0$', '', regex=True)
-                df['order_date'] = pd.to_datetime(df['order_date'], errors='coerce').dt.date
-                df['expiry_date'] = pd.to_datetime(df['expiry_date'], errors='coerce').dt.date
+                df['order_date'] = pd.to_datetime(df['order_date'], dayfirst=True, errors='coerce').dt.date
+                df['expiry_date'] = pd.to_datetime(df['expiry_date'], dayfirst=True, errors='coerce').dt.date
                 
                 tracker_summary = df.groupby(['po_number', 'facility_name'], as_index=False).agg({
                     'order_date': 'first',
@@ -339,6 +393,10 @@ body {{
                 sku_summary = df.groupby(['upc', 'name'], as_index=False).agg({'units_ordered': 'sum'})
                 sku_summary.rename(columns={'units_ordered': 'total_units'}, inplace=True)
                 sku_summary = sku_summary.sort_values(by='total_units', ascending=False)
+                
+                # Store SKU data for email
+                self.last_sku_data = sku_summary.copy()
+                print(f"DEBUG: SKU data stored - {len(self.last_sku_data)} rows")  # Debug line
                 
                 timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
                 output_file = Path(file_path).parent / f"{marketplace}_PO_Report_{timestamp}.xlsx"
@@ -366,9 +424,21 @@ body {{
                 
                 # Ask if user wants to send email
                 if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-                    # Prepare tracker data for email (without ₹ formatting for table)
+                    # Prepare data for email (remove ₹ formatting for proper display)
                     email_tracker = tracker_summary.copy()
-                    if self.send_email_summary(marketplace, self.last_summary, email_tracker):
+                    email_sku = self.last_sku_data.copy() if self.last_sku_data is not None else None
+                    
+                    # Debug popup
+                    debug_msg = f"SKU Data Check:\n"
+                    debug_msg += f"Has SKU data: {email_sku is not None}\n"
+                    if email_sku is not None:
+                        debug_msg += f"SKU rows: {len(email_sku)}\n"
+                        debug_msg += f"SKU columns: {list(email_sku.columns)}"
+                    else:
+                        debug_msg += "SKU data is None!"
+                    messagebox.showinfo("Debug Info", debug_msg)
+                    
+                    if self.send_email_summary(marketplace, self.last_summary, email_tracker, email_sku):
                         messagebox.showinfo("Email Sent", f"Summary sent successfully to {self.DEFAULT_RECIPIENT}")
                 
                 if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
@@ -392,8 +462,8 @@ body {{
                 }
                 df = df[list(cols_map.keys())].rename(columns=cols_map)
                 
-                df["Order Date"] = pd.to_datetime(df["Order Date"], errors="coerce").dt.date
-                df["Expiry Date"] = pd.to_datetime(df["Expiry Date"], errors="coerce").dt.date
+                df["Order Date"] = pd.to_datetime(df["Order Date"], dayfirst=True, errors="coerce").dt.date
+                df["Expiry Date"] = pd.to_datetime(df["Expiry Date"], dayfirst=True, errors="coerce").dt.date
                 
                 FLIPKART_ALPHA_LOCS = [
                     "ban_ven_wh_nl_01nl",
@@ -409,6 +479,9 @@ body {{
                 
                 tracker_summary = df[["Marketplace", "PO", "Location", "Order Date", "Expiry Date", "PO Value", "PO Qty"]].copy()
                 tracker_summary = tracker_summary.sort_values("Location", ascending=True)
+                
+                # No SKU data for Flipkart
+                self.last_sku_data = None
                 
                 timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
                 output_file = Path(file_path).parent / f"{marketplace}_PO_Report_{timestamp}.xlsx"
@@ -432,15 +505,17 @@ body {{
                 self.show_summary_popup(tracker_summary, marketplace)
                 messagebox.showinfo("Success", f"Report created successfully at:\n{output_file}")
                 
-                # Ask if user wants to send email
+                # Ask if user wants to send email BEFORE opening file
                 if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
                     email_tracker = tracker_summary.copy()
-                    if self.send_email_summary(marketplace, self.last_summary, email_tracker):
+                    email_sku = None  # Flipkart has no SKU data
+                    
+                    if self.send_email_summary(marketplace, self.last_summary, email_tracker, email_sku):
                         messagebox.showinfo("Email Sent", f"Summary sent successfully to {self.DEFAULT_RECIPIENT}")
                 
                 if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
-                    self.root.destroy()
                     os.startfile(output_file)
+                    self.root.destroy()
             
             # --- Swiggy Logic ---
             elif marketplace == "Swiggy":
@@ -452,9 +527,10 @@ body {{
                 df.columns = df.columns.str.strip().str.replace(" ", "").str.upper()
                 df = df[df['STATUS'] == 'CONFIRMED']
                 
-                df['POCREATEDAT'] = pd.to_datetime(df['POCREATEDAT'], errors='coerce').dt.date
-                df['POEXPIRYDATE'] = pd.to_datetime(df['POEXPIRYDATE'], errors='coerce').dt.date
+                df['POCREATEDAT'] = pd.to_datetime(df['POCREATEDAT'], dayfirst=True, errors='coerce').dt.date
+                df['POEXPIRYDATE'] = pd.to_datetime(df['POEXPIRYDATE'], dayfirst=True, errors='coerce').dt.date
                 
+                # Aggregate PO Tracker
                 tracker_summary = df.groupby(['PONUMBER', 'CITY'], as_index=False).agg({
                     'POCREATEDAT': 'first',
                     'POEXPIRYDATE': 'first',
@@ -471,11 +547,46 @@ body {{
                     'ORDEREDQTY': 'PO Qty'
                 }, inplace=True)
                 
-                tracker_summary['PO Value'] = tracker_summary['PO Value'].apply(
-                    lambda x: f"₹ {self.format_indian(x)}"
-                )
+                # Create SKU Summary (similar to Blinkit)
+                df['EAN'] = df['EAN'].apply(lambda x: str(int(float(x))) if pd.notna(x) else "")
+                sku_summary = df.groupby(['EAN', 'SKUDESCRIPTION'], as_index=False).agg({'ORDEREDQTY': 'sum'})
+                sku_summary.rename(columns={
+                    'EAN': 'upc',
+                    'SKUDESCRIPTION': 'name',
+                    'ORDEREDQTY': 'total_units'
+                }, inplace=True)
+                sku_summary = sku_summary.sort_values(by='total_units', ascending=False)
+                
+                # Store SKU data for email
+                self.last_sku_data = sku_summary.copy()
+                
+                # Format PO Value for tracker
+                tracker_summary['PO Value'] = tracker_summary['PO Value'].apply(lambda x: f"₹ {self.format_indian(x)}")
                 
                 timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
+                
+                # Create main Swiggy report (like Blinkit)
+                main_output_file = Path(file_path).parent / f"{marketplace}_PO_Report_{timestamp}.xlsx"
+                
+                with pd.ExcelWriter(main_output_file, engine='openpyxl') as writer:
+                    tracker_summary.to_excel(writer, sheet_name='PO Tracker', index=False)
+                    sku_summary.to_excel(writer, sheet_name='SKU Summary', index=False)
+                    
+                    from openpyxl.styles import Alignment
+                    from openpyxl.utils import get_column_letter
+                    workbook = writer.book
+                    
+                    for sheet_name in ['PO Tracker', 'SKU Summary']:
+                        ws = workbook[sheet_name]
+                        for row in ws.iter_rows():
+                            for cell in row:
+                                cell.alignment = Alignment(horizontal='center', vertical='center')
+                        for col in ws.columns:
+                            max_length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in col)
+                            col_letter = get_column_letter(col[0].column)
+                            ws.column_dimensions[col_letter].width = max_length + 2
+                
+                # Create separate folder for individual PO workbooks
                 output_folder = Path(file_path).parent / f"Swiggy_PO_Workbooks_{timestamp}"
                 output_folder.mkdir(parents=True, exist_ok=True)
                 
@@ -555,15 +666,24 @@ body {{
                     wb.save(wb_path)
                 
                 self.show_summary_popup(tracker_summary, marketplace)
-                messagebox.showinfo("Success", f"Swiggy PO workbooks created successfully in folder:\n{output_folder}")
                 
-                # Ask if user wants to send email
+                # Show success message with both files
+                messagebox.showinfo(
+                    "Success", 
+                    f"Main report created: {main_output_file.name}\n\n"
+                    f"Individual PO workbooks created in:\n{output_folder.name}"
+                )
+                
+                # Ask if user wants to send email BEFORE opening files
                 if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-                    email_tracker = tracker_summary.copy()
-                    if self.send_email_summary(marketplace, self.last_summary, email_tracker):
+                    # Send the ORIGINAL DataFrames directly
+                    if self.send_email_summary(marketplace, self.last_summary, tracker_summary, sku_summary):
                         messagebox.showinfo("Email Sent", f"Summary sent successfully to {self.DEFAULT_RECIPIENT}")
                 
-                if messagebox.askyesno("Open Folder", "Do you want to open the output folder?"):
+                if messagebox.askyesno("Open File", "Do you want to open the main Excel report?"):
+                    os.startfile(main_output_file)
+                
+                if messagebox.askyesno("Open Folder", "Do you want to open the PO workbooks folder?"):
                     os.startfile(output_folder)
             
             # --- Zepto (Future Placeholder) ---
