@@ -234,15 +234,15 @@ body {{
         
         # Add PO Details table if tracker_df is provided
         if tracker_df is not None and not tracker_df.empty:
-            html += '<h3 style="margin: 20px 0 10px 0;">PO Details</h3>\n<table class="data-table">\n<tr>'
+            html += '<h3 style="margin: 20px 0 10px 0;">PO Details (All POs)</h3>\n<table class="data-table">\n<tr>'
             
             # Add table headers
             for col in tracker_df.columns:
                 html += f"<th>{col}</th>"
             html += "</tr>\n"
             
-            # Add table rows (limit to first 50 rows)
-            for idx, row in tracker_df.head(50).iterrows():
+            # Add table rows (ALL rows - not limited)
+            for idx, row in tracker_df.iterrows():
                 html += "<tr>"
                 for col in tracker_df.columns:
                     cell_value = row[col]
@@ -265,14 +265,11 @@ body {{
                     html += f"<td>{cell_value}</td>"
                 html += "</tr>\n"
             
-            if len(tracker_df) > 50:
-                html += f'<tr><td colspan="{len(tracker_df.columns)}" style="text-align: center; font-style: italic; color: #999;">... and {len(tracker_df) - 50} more rows</td></tr>\n'
-            
             html += "</table>"
         
         # Add SKU Demand table if sku_df is provided
         if has_sku:
-            html += '<h3 style="margin: 20px 0 10px 0;">SKU Demand (Top 50)</h3>\n<table class="sku-table">\n<tr>'
+            html += '<h3 style="margin: 20px 0 10px 0;">SKU Demand (All SKUs)</h3>\n<table class="sku-table">\n<tr>'
             
             # Add SKU table headers
             for col in sku_df.columns:
@@ -280,8 +277,8 @@ body {{
                 html += f"<th>{display_col}</th>"
             html += "</tr>\n"
             
-            # Add SKU table rows (limit to first 50 rows)
-            for idx, row in sku_df.head(50).iterrows():
+            # Add SKU table rows (ALL rows - not limited)
+            for idx, row in sku_df.iterrows():
                 html += "<tr>"
                 for col in sku_df.columns:
                     cell_value = row[col]
@@ -293,9 +290,6 @@ body {{
                             pass
                     html += f"<td>{cell_value}</td>"
                 html += "</tr>\n"
-            
-            if len(sku_df) > 50:
-                html += f'<tr><td colspan="{len(sku_df.columns)}" style="text-align: center; font-style: italic; color: #999;">... and {len(sku_df) - 50} more SKUs</td></tr>\n'
             
             html += "</table>"
         
