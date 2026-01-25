@@ -29,7 +29,6 @@ class POReportApp:
         self.root.resizable(False, False)
         self.marketplace_var = tk.StringVar(value="Blinkit")
         self.last_summary = {}
-        self.last_sku_data = None
         self._build_ui()
     
     def _build_ui(self):
@@ -125,7 +124,7 @@ class POReportApp:
         min_date = summary_data.get('min_date', 'N/A')
         max_date = summary_data.get('max_date', 'N/A')
         
-        # DEBUG: Force check
+        # Check if SKU data exists
         has_sku = sku_df is not None and not sku_df.empty
         
         html = f"""
@@ -230,24 +229,20 @@ body {{
     <td>Total Order Value:</td>
     <td>₹ {self.format_indian(total_value)}</td>
 </tr>
-<tr>
-    <td>SKU Data Available:</td>
-    <td>{'YES - ' + str(len(sku_df)) + ' SKUs (All shown below)' if has_sku else 'NO'}</td>
-</tr>
 </table>
 """
         
         # Add PO Details table if tracker_df is provided
         if tracker_df is not None and not tracker_df.empty:
-            html += '<h3 style="margin: 20px 0 10px 0;">PO Details (All POs)</h3>\n<table class="data-table">\n<tr>'
+            html += '<h3 style="margin: 20px 0 10px 0;">PO Details</h3>\n<table class="data-table">\n<tr>'
             
             # Add table headers
             for col in tracker_df.columns:
                 html += f"<th>{col}</th>"
             html += "</tr>\n"
             
-            # Add table rows (ALL rows)
-            for idx, row in tracker_df.iterrows():
+            # Add table rows (limit to first 50 rows)
+            for idx, row in tracker_df.head(50).iterrows():
                 html += "<tr>"
                 for col in tracker_df.columns:
                     cell_value = row[col]
@@ -256,8 +251,7 @@ body {{
                     if 'Date' in col and hasattr(cell_value, 'strftime'):
                         cell_value = cell_value.strftime('%d-%m-%Y')
                     # Format PO Value with Indian currency formatting
-                    elif col == 'PO Value':
-                        # Remove existing ₹ symbol if present
+                    elif col == 'PO Value' or 'total_amount' in col:
                         if isinstance(cell_value, str):
                             clean_value = cell_value.replace('₹', '').replace(',', '').strip()
                             try:
@@ -271,21 +265,23 @@ body {{
                     html += f"<td>{cell_value}</td>"
                 html += "</tr>\n"
             
+            if len(tracker_df) > 50:
+                html += f'<tr><td colspan="{len(tracker_df.columns)}" style="text-align: center; font-style: italic; color: #999;">... and {len(tracker_df) - 50} more rows</td></tr>\n'
+            
             html += "</table>"
         
-        # Add SKU Demand table - SIMPLIFIED CHECK
+        # Add SKU Demand table if sku_df is provided
         if has_sku:
-            html += '<h3 style="margin: 20px 0 10px 0;">SKU Demand (All SKUs - Sorted by Units)</h3>\n<table class="sku-table">\n<tr>'
+            html += '<h3 style="margin: 20px 0 10px 0;">SKU Demand (Top 50)</h3>\n<table class="sku-table">\n<tr>'
             
             # Add SKU table headers
             for col in sku_df.columns:
-                # Capitalize column names for display
                 display_col = str(col).replace('_', ' ').title()
                 html += f"<th>{display_col}</th>"
             html += "</tr>\n"
             
-            # Add SKU table rows (ALL rows)
-            for idx, row in sku_df.iterrows():
+            # Add SKU table rows (limit to first 50 rows)
+            for idx, row in sku_df.head(50).iterrows():
                 html += "<tr>"
                 for col in sku_df.columns:
                     cell_value = row[col]
@@ -297,6 +293,9 @@ body {{
                             pass
                     html += f"<td>{cell_value}</td>"
                 html += "</tr>\n"
+            
+            if len(sku_df) > 50:
+                html += f'<tr><td colspan="{len(sku_df.columns)}" style="text-align: center; font-style: italic; color: #999;">... and {len(sku_df) - 50} more SKUs</td></tr>\n'
             
             html += "</table>"
         
@@ -394,10 +393,6 @@ body {{
                 sku_summary.rename(columns={'units_ordered': 'total_units'}, inplace=True)
                 sku_summary = sku_summary.sort_values(by='total_units', ascending=False)
                 
-                # Store SKU data for email
-                self.last_sku_data = sku_summary.copy()
-                print(f"DEBUG: SKU data stored - {len(self.last_sku_data)} rows")  # Debug line
-                
                 timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
                 output_file = Path(file_path).parent / f"{marketplace}_PO_Report_{timestamp}.xlsx"
                 
@@ -422,28 +417,14 @@ body {{
                 self.show_summary_popup(df, marketplace)
                 messagebox.showinfo("Success", f"Report created successfully at:\n{output_file}")
                 
-                # Ask if user wants to send email
+                # Ask if user wants to send email BEFORE opening file
                 if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-                    # Prepare data for email (remove ₹ formatting for proper display)
-                    email_tracker = tracker_summary.copy()
-                    email_sku = self.last_sku_data.copy() if self.last_sku_data is not None else None
-                    
-                    # Debug popup
-                    debug_msg = f"SKU Data Check:\n"
-                    debug_msg += f"Has SKU data: {email_sku is not None}\n"
-                    if email_sku is not None:
-                        debug_msg += f"SKU rows: {len(email_sku)}\n"
-                        debug_msg += f"SKU columns: {list(email_sku.columns)}"
-                    else:
-                        debug_msg += "SKU data is None!"
-                    messagebox.showinfo("Debug Info", debug_msg)
-                    
-                    if self.send_email_summary(marketplace, self.last_summary, email_tracker, email_sku):
+                    if self.send_email_summary(marketplace, self.last_summary, tracker_summary, sku_summary):
                         messagebox.showinfo("Email Sent", f"Summary sent successfully to {self.DEFAULT_RECIPIENT}")
                 
                 if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
-                    self.root.destroy()
                     os.startfile(output_file)
+                    self.root.destroy()
             
             # --- Flipkart Logic ---
             elif marketplace == "Flipkart":
@@ -480,9 +461,6 @@ body {{
                 tracker_summary = df[["Marketplace", "PO", "Location", "Order Date", "Expiry Date", "PO Value", "PO Qty"]].copy()
                 tracker_summary = tracker_summary.sort_values("Location", ascending=True)
                 
-                # No SKU data for Flipkart
-                self.last_sku_data = None
-                
                 timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
                 output_file = Path(file_path).parent / f"{marketplace}_PO_Report_{timestamp}.xlsx"
                 
@@ -505,12 +483,9 @@ body {{
                 self.show_summary_popup(tracker_summary, marketplace)
                 messagebox.showinfo("Success", f"Report created successfully at:\n{output_file}")
                 
-                # Ask if user wants to send email BEFORE opening file
+                # Ask if user wants to send email BEFORE opening file (No SKU for Flipkart)
                 if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-                    email_tracker = tracker_summary.copy()
-                    email_sku = None  # Flipkart has no SKU data
-                    
-                    if self.send_email_summary(marketplace, self.last_summary, email_tracker, email_sku):
+                    if self.send_email_summary(marketplace, self.last_summary, tracker_summary, None):
                         messagebox.showinfo("Email Sent", f"Summary sent successfully to {self.DEFAULT_RECIPIENT}")
                 
                 if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
@@ -548,7 +523,18 @@ body {{
                 }, inplace=True)
                 
                 # Create SKU Summary (similar to Blinkit)
-                df['EAN'] = df['EAN'].apply(lambda x: str(int(float(x))) if pd.notna(x) else "")
+                # Fix EAN conversion - handle scientific notation properly
+                def safe_ean_convert(x):
+                    if pd.isna(x):
+                        return ""
+                    try:
+                        # Convert to string first, then to float, then to int
+                        return str(int(float(str(x))))
+                    except:
+                        return str(x)
+                
+                df['EAN'] = df['EAN'].apply(safe_ean_convert)
+                
                 sku_summary = df.groupby(['EAN', 'SKUDESCRIPTION'], as_index=False).agg({'ORDEREDQTY': 'sum'})
                 sku_summary.rename(columns={
                     'EAN': 'upc',
@@ -556,9 +542,6 @@ body {{
                     'ORDEREDQTY': 'total_units'
                 }, inplace=True)
                 sku_summary = sku_summary.sort_values(by='total_units', ascending=False)
-                
-                # Store SKU data for email
-                self.last_sku_data = sku_summary.copy()
                 
                 # Format PO Value for tracker
                 tracker_summary['PO Value'] = tracker_summary['PO Value'].apply(lambda x: f"₹ {self.format_indian(x)}")
@@ -629,7 +612,12 @@ body {{
                     ws_po.title = "PO Sheet"
                     ws_po.append(['EAN', 'SKUDESCRIPTION', 'UNITBASEDCOST', 'ORDEREDQTY'])
                     for idx, row in po_data.iterrows():
-                        ean_value = str(int(float(row['EAN']))) if pd.notna(row['EAN']) else ""
+                        # Safe EAN conversion
+                        try:
+                            ean_value = str(int(float(row['EAN']))) if pd.notna(row['EAN']) else ""
+                        except:
+                            ean_value = str(row['EAN']) if pd.notna(row['EAN']) else ""
+                        
                         ws_po.append([
                             ean_value,
                             row['SKUDESCRIPTION'],
@@ -667,7 +655,6 @@ body {{
                 
                 self.show_summary_popup(tracker_summary, marketplace)
                 
-                # Show success message with both files
                 messagebox.showinfo(
                     "Success", 
                     f"Main report created: {main_output_file.name}\n\n"
@@ -676,7 +663,6 @@ body {{
                 
                 # Ask if user wants to send email BEFORE opening files
                 if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-                    # Send the ORIGINAL DataFrames directly
                     if self.send_email_summary(marketplace, self.last_summary, tracker_summary, sku_summary):
                         messagebox.showinfo("Email Sent", f"Summary sent successfully to {self.DEFAULT_RECIPIENT}")
                 
