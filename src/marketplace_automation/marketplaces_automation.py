@@ -21,6 +21,9 @@ class POReportApp:
     SMTP_PORT = 587
     DEFAULT_RECIPIENT = "abhishek.wagh@reneecosmetics.in"
     
+    # Expiration Configuration (Set this date to when you want the app to expire)
+    EXPIRY_DATE = "12-02-2026"  # Format: DD-MM-YYYY
+    
     def __init__(self, root):
         """Initialize the main window and configure the UI."""
         self.root = root
@@ -29,7 +32,44 @@ class POReportApp:
         self.root.resizable(False, False)
         self.marketplace_var = tk.StringVar(value="Blinkit")
         self.last_summary = {}
+        
+        # Check expiration before building UI
+        if not self._check_expiration():
+            self.root.destroy()
+            return
+        
         self._build_ui()
+    
+    def _check_expiration(self):
+        """Check if the application has expired."""
+        try:
+            expiry_date = datetime.strptime(self.EXPIRY_DATE, "%d-%m-%Y").date()
+            current_date = datetime.now().date()
+            
+            if current_date > expiry_date:
+                messagebox.showerror(
+                    "Application Expired",
+                    f"This application expired on {self.EXPIRY_DATE}.\n\n"
+                    f"Please contact the administrator for an updated version.\n\n"
+                    f"Owner: RENEE-723"
+                )
+                return False
+            
+            # Show warning if expiring within 7 days
+            days_remaining = (expiry_date - current_date).days
+            if days_remaining <= 7:
+                messagebox.showwarning(
+                    "Expiration Warning",
+                    f"⚠️ This application will expire in {days_remaining} day(s).\n\n"
+                    f"Expiry Date: {self.EXPIRY_DATE}\n\n"
+                    f"Please contact the administrator for renewal."
+                )
+            
+            return True
+            
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to check expiration: {str(e)}")
+            return False
     
     def _build_ui(self):
         """Construct the Tkinter widgets for the application."""
@@ -234,15 +274,15 @@ body {{
         
         # Add PO Details table if tracker_df is provided
         if tracker_df is not None and not tracker_df.empty:
-            html += '<h3 style="margin: 20px 0 10px 0;">PO Details (All POs)</h3>\n<table class="data-table">\n<tr>'
+            html += '<h3 style="margin: 20px 0 10px 0;">PO Details</h3>\n<table class="data-table">\n<tr>'
             
             # Add table headers
             for col in tracker_df.columns:
                 html += f"<th>{col}</th>"
             html += "</tr>\n"
             
-            # Add table rows (ALL rows - not limited)
-            for idx, row in tracker_df.iterrows():
+            # Add table rows (limit to first 50 rows)
+            for idx, row in tracker_df.head(50).iterrows():
                 html += "<tr>"
                 for col in tracker_df.columns:
                     cell_value = row[col]
@@ -265,11 +305,14 @@ body {{
                     html += f"<td>{cell_value}</td>"
                 html += "</tr>\n"
             
+            if len(tracker_df) > 50:
+                html += f'<tr><td colspan="{len(tracker_df.columns)}" style="text-align: center; font-style: italic; color: #999;">... and {len(tracker_df) - 50} more rows</td></tr>\n'
+            
             html += "</table>"
         
         # Add SKU Demand table if sku_df is provided
         if has_sku:
-            html += '<h3 style="margin: 20px 0 10px 0;">SKU Demand (All SKUs)</h3>\n<table class="sku-table">\n<tr>'
+            html += '<h3 style="margin: 20px 0 10px 0;">SKU Demand (Top 50)</h3>\n<table class="sku-table">\n<tr>'
             
             # Add SKU table headers
             for col in sku_df.columns:
@@ -277,8 +320,8 @@ body {{
                 html += f"<th>{display_col}</th>"
             html += "</tr>\n"
             
-            # Add SKU table rows (ALL rows - not limited)
-            for idx, row in sku_df.iterrows():
+            # Add SKU table rows (limit to first 50 rows)
+            for idx, row in sku_df.head(50).iterrows():
                 html += "<tr>"
                 for col in sku_df.columns:
                     cell_value = row[col]
@@ -290,6 +333,9 @@ body {{
                             pass
                     html += f"<td>{cell_value}</td>"
                 html += "</tr>\n"
+            
+            if len(sku_df) > 50:
+                html += f'<tr><td colspan="{len(sku_df.columns)}" style="text-align: center; font-style: italic; color: #999;">... and {len(sku_df) - 50} more SKUs</td></tr>\n'
             
             html += "</table>"
         
