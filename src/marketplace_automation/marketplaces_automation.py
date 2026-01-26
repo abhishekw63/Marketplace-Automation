@@ -24,8 +24,10 @@ class POReportApp:
     # CC Recipients (add email addresses here, one per line)
     CC_RECIPIENTS = [
         "onlineb2b@reneecosmetics.in",
-        # "email2@example.com",
-        # "email3@example.com",
+        "pintu.sharma@reneecosmetics.in",
+        "vikram.dabhi@reneecosmetics.in",
+        "tanishq.gaggar@reneecosmetics.in",
+        "jitendra.r@reneecosmetics.in"
     ]
     
     # Expiration Configuration (Set this date to when you want the app to expire)
@@ -332,7 +334,7 @@ body {{
         
         # Add SKU Demand table if sku_df is provided
         if has_sku:
-            html += '<h3 style="margin: 20px 0 10px 0;">SKU Demand (Top 50)</h3>\n<table class="sku-table">\n<tr>'
+            html += '<h3 style="margin: 20px 0 10px 0;">SKU Demand</h3>\n<table class="sku-table">\n<tr>'
             
             # Add SKU table headers
             for col in sku_df.columns:
