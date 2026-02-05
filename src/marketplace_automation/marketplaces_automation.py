@@ -27,7 +27,13 @@ class POReportApp:
         "pintu.sharma@reneecosmetics.in",
         "vikram.dabhi@reneecosmetics.in",
         "tanishq.gaggar@reneecosmetics.in",
-        "jitendra.r@reneecosmetics.in"
+        "jitendra.r@reneecosmetics.in",
+        "aritra.barmanray@reneecosmetics.in",
+        "yogesh.parekh@reneecosmetics.in",
+        "mudit.porwal@reneecosmetics.in",
+        "kishan.limbachiya@reneecosmetics.in",
+        "jayesh.makwana@reneecosmetics.in",
+        "rahul.gohel@reneecosmetics.in"
     ]
     
     # Expiration Configuration (Set this date to when you want the app to expire)
@@ -361,8 +367,29 @@ body {{
         
         # Add footer
         html += """
-<div class="footer">
-<p>This is an automated email from PO Report Generator<br>RENEE-723 | © 2026</p>
+<div class="footer" style="background: linear-gradient(to right, #f8f9fa, #e9ecef); padding: 25px; border-radius: 10px; margin-top: 30px; border-left: 5px solid #4472C4;">
+    <div style="text-align: center;">
+        <div style="display: inline-block; background: #4472C4; color: white; padding: 8px 20px; border-radius: 20px; margin-bottom: 15px;">
+            <span style="font-size: 13px; font-weight: bold;">📊 PO Report Generator v1.0</span>
+        </div>
+        <p style="margin: 10px 0; font-size: 11px; color: #666; font-style: italic;">
+            Automated Purchase Order Intelligence System for E-commerce Marketplaces
+        </p>
+        <div style="background: white; padding: 15px; border-radius: 8px; margin: 15px 0; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <p style="margin: 5px 0; font-size: 11px; color: #333;">
+                <span style="background: #70AD47; color: white; padding: 4px 12px; border-radius: 12px; font-size: 10px; margin-right: 8px;">
+                    👨‍💻 DEVELOPER
+                </span>
+                <strong>Abhishek Wagh</strong>
+            </p>
+            <p style="margin: 5px 0; font-size: 10px; color: #666;">
+                🆔 Owner ID: RENEE-723 &nbsp;•&nbsp; 📧 abhishek.wagh@reneecosmetics.in
+            </p>
+        </div>
+        <p style="margin: 5px 0; font-size: 9px; color: #999;">
+            © 2026 RENEE Cosmetics Pvt. Ltd. | All Rights Reserved | Confidential
+        </p>
+    </div>
 </div>
 </body>
 </html>
@@ -591,7 +618,7 @@ body {{
                 df['POEXPIRYDATE'] = pd.to_datetime(df['POEXPIRYDATE'], dayfirst=True, errors='coerce').dt.date
                 
                 # Aggregate PO Tracker
-                tracker_summary = df.groupby(['PONUMBER', 'CITY'], as_index=False).agg({
+                tracker_summary = df.groupby(['PONUMBER', 'FACILITYNAME'], as_index=False).agg({
                     'POCREATEDAT': 'first',
                     'POEXPIRYDATE': 'first',
                     'POLINEVALUEWITHTAX': 'sum',
@@ -600,7 +627,7 @@ body {{
                 tracker_summary.insert(0, 'Marketplace', 'Swiggy')
                 tracker_summary.rename(columns={
                     'PONUMBER': 'PO',
-                    'CITY': 'Location',
+                    'FACILITYNAME': 'Location',
                     'POCREATEDAT': 'Order Date',
                     'POEXPIRYDATE': 'Expiry Date',
                     'POLINEVALUEWITHTAX': 'PO Value',
@@ -690,7 +717,8 @@ body {{
                 
                 for po_number in tracker_summary['PO']:
                     po_data = df[df['PONUMBER'] == po_number]
-                    city = po_data['CITY'].iloc[0]
+                    # city = po_data['CITY'].iloc[0]
+                    facility = po_data['FACILITYNAME'].iloc[0]
                     wb = Workbook()
                     
                     ws_po = wb.active
@@ -720,7 +748,8 @@ body {{
                     format_sheet(ws_scan, ean_columns=['A', 'B'])
                     
                     ws_packing = wb.create_sheet("Packing Slip")
-                    ws_packing['A1'] = f"{po_number} Swiggy {city}"
+                    # ws_packing['A1'] = f"{po_number} Swiggy {city}"
+                    ws_packing['A1'] = f"{po_number} Swiggy {facility}"
                     ws_packing['A1'].font = Font(bold=True, size=12)
                     ws_packing.merge_cells('A1:D1')
                     ws_packing.append(["Scan", "Title", "Box", "Total"])
