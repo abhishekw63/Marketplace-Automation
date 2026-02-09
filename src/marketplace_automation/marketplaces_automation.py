@@ -412,8 +412,12 @@ body {{
             total_pos = df['po_number'].nunique()
             total_units = df['units_ordered'].sum()
             total_value = df['total_amount'].sum()
-            min_date = df['order_date'].min()
-            max_date = df['expiry_date'].max()
+            # Convert string dates back to datetime for min/max calculation
+            
+            df['order_date'] = pd.to_datetime(df['order_date'], format='%d-%m-%Y', errors='coerce')
+            df['expiry_date'] = pd.to_datetime(df['expiry_date'], format='%d-%m-%Y', errors='coerce')
+            min_date = df['order_date'].min()  # Lowest order date
+            max_date = df['expiry_date'].max()  # Highest expiry date
         elif marketplace in ["Flipkart", "Swiggy"]:
             total_pos = df['PO'].nunique()
             total_units = df['PO Qty'].sum()
@@ -473,9 +477,11 @@ body {{
                 df = pd.read_csv(file_path)
                 df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
                 df['po_number'] = df['po_number'].astype(str).str.replace(r'\.0$', '', regex=True)
-                df['order_date'] = pd.to_datetime(df['order_date'], dayfirst=True, errors='coerce').dt.date
-                df['expiry_date'] = pd.to_datetime(df['expiry_date'], dayfirst=True, errors='coerce').dt.date
+                df['order_date'] = pd.to_datetime(df['order_date'], dayfirst=True, errors='coerce')
+                df['expiry_date'] = pd.to_datetime(df['expiry_date'], dayfirst=True, errors='coerce')
                 
+                df['order_date'] = df['order_date'].dt.strftime('%d-%m-%Y')
+                df['expiry_date'] = df['expiry_date'].dt.strftime('%d-%m-%Y')
                 tracker_summary = df.groupby(['po_number', 'facility_name'], as_index=False).agg({
                     'order_date': 'first',
                     'expiry_date': 'first',
@@ -549,8 +555,8 @@ body {{
                 }
                 df = df[list(cols_map.keys())].rename(columns=cols_map)
                 
-                df["Order Date"] = pd.to_datetime(df["Order Date"], dayfirst=True, errors="coerce").dt.date
-                df["Expiry Date"] = pd.to_datetime(df["Expiry Date"], dayfirst=True, errors="coerce").dt.date
+                df["Order Date"] = pd.to_datetime(df["Order Date"], errors="coerce").dt.strftime('%d-%m-%Y')
+                df["Expiry Date"] = pd.to_datetime(df["Expiry Date"], errors="coerce").dt.strftime('%d-%m-%Y')
                 
                 FLIPKART_ALPHA_LOCS = [
                     "ban_ven_wh_nl_01nl",
