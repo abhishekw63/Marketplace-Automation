@@ -294,26 +294,29 @@ class POReportApp:
             if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
                 self.status_var.set("Sending email...")
                 self.root.update_idletasks()
-
-                # We can run email sending synchronously here or in a thread,
-                # for simplicity we'll block the UI briefly since it's an end-step
+                
+                # Send email
                 success, err_msg = EmailService.send_email_summary(
                     marketplace,
                     self.last_summary,
                     result['tracker_df'],
                     result['sku_df']
                 )
-
                 self.status_var.set("")
-
+                
+                # Handle result
                 if success:
                     recipient_info = f"To: {Config.DEFAULT_RECIPIENT}"
                     if Config.CC_RECIPIENTS:
                         cc_list = "\n".join([f"  • {email}" for email in Config.CC_RECIPIENTS])
                         recipient_info += f"\n\nCC:\n{cc_list}"
                     messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
+                else:
+                    # ← Correct indentation - only shows on actual email failure
+                    messagebox.showerror("Email Error", f"Failed to send email:\n{err_msg}")
             else:
-                messagebox.showerror("Email Error", f"Failed to send email:\n{err_msg}")
+                # User clicked "No" - silently proceed (or show info if you want)
+                pass
 
             # Ask to open files
             if marketplace == "Swiggy":
