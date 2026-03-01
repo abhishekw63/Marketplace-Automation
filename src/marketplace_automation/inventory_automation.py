@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 
 # ===================== LICENSE CONTROL =====================
-SOFTWARE_EXPIRY_DATE = "2025-06-30"  # YYYY-MM-DD
+SOFTWARE_EXPIRY_DATE = "2026-03-28"  # YYYY-MM-DD
 
 def check_license():
     expiry = datetime.strptime(SOFTWARE_EXPIRY_DATE, "%Y-%m-%d").date()
