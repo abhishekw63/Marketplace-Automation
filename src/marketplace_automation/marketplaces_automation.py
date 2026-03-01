@@ -24,10 +24,11 @@ class POReportApp:
         """Initialize the main window and configure the UI."""
         self.root = root
         self.root.title("PO Report Generator")
-        self.root.geometry("550x450")
+        self.root.geometry("500x700")
         self.root.resizable(False, False)
-        self.root.configure(bg="#f4f6f9")
+        self.root.configure(bg="#667eea") # Simulated gradient background
         self.marketplace_var = tk.StringVar(value="Blinkit")
+        self.selected_file_path = None
         self.last_summary = {}
         self.is_processing = False
         
@@ -71,94 +72,192 @@ class POReportApp:
     
     def _build_ui(self):
         """Construct the Tkinter widgets for the application."""
-        style = ttk.Style()
-        style.theme_use('clam')
+        # Main Container mimicking the HTML container
+        container = tk.Frame(self.root, bg="white", highlightthickness=0, bd=0)
+        container.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # Style configurations
-        style.configure("TLabel", font=("Segoe UI", 10), background="#f4f6f9")
-        style.configure("Header.TLabel", font=("Segoe UI", 18, "bold"), foreground="#4472C4", background="white")
-        style.configure("SubHeader.TLabel", font=("Segoe UI", 10, "italic"), foreground="gray", background="white")
+        # Rounded corners illusion using relief/border isn't perfect in pure tk,
+        # but container provides the white card over gradient background.
 
         # Header Frame
-        header_frame = tk.Frame(self.root, bg="white", pady=15, relief="solid", bd=0)
+        header_frame = tk.Frame(container, bg="#667eea", pady=30, bd=0)
         header_frame.pack(fill="x", side="top")
 
-        ttk.Label(header_frame, text="📊 PO Report Generator", style="Header.TLabel").pack()
-        ttk.Label(header_frame, text="Automated Purchase Order Intelligence System", style="SubHeader.TLabel").pack()
+        tk.Label(header_frame, text="📊", font=("Segoe UI", 36), bg="#667eea", fg="white").pack(pady=(0, 10))
+        tk.Label(header_frame, text="PO Report Generator", font=("Segoe UI", 20, "bold"), bg="#667eea", fg="white").pack()
+        tk.Label(header_frame, text="Automated Purchase Order Intelligence System", font=("Segoe UI", 10), bg="#667eea", fg="#e2e8f0").pack()
 
-        # Main Content Frame
-        main_frame = tk.Frame(self.root, bg="#f4f6f9", pady=20)
-        main_frame.pack(fill="both", expand=True)
+        # Content Frame
+        content_frame = tk.Frame(container, bg="white", padx=25, pady=25)
+        content_frame.pack(fill="both", expand=True)
 
-        ttk.Label(main_frame, text="Select Marketplace:").pack(pady=(10, 5))
+        # 1. Marketplace Selection
+        tk.Label(content_frame, text="SELECT MARKETPLACE", font=("Segoe UI", 10, "bold"), bg="white", fg="#2d3748").pack(anchor="w", pady=(0, 10))
 
-        style.configure("TCombobox", padding=5, font=("Segoe UI", 11))
-        self.marketplace_dropdown = ttk.Combobox(
-            main_frame,
-            textvariable=self.marketplace_var,
-            values=["Blinkit", "Flipkart", "Swiggy", "Zepto"],
-            state="readonly",
-            width=30,
-            font=("Segoe UI", 11)
-        )
-        self.marketplace_dropdown.pack(pady=5)
+        grid_frame = tk.Frame(content_frame, bg="white")
+        grid_frame.pack(fill="x", pady=(0, 20))
 
-        style.configure(
-            "Action.TButton",
+        for i in range(4):
+            grid_frame.columnconfigure(i, weight=1, pad=10)
+
+        marketplaces = [
+            ("Blinkit", "🚀", 0, 0),
+            ("Amazon", "🛒", 0, 1),
+            ("Flipkart", "📦", 0, 2),
+            ("Meesho", "🎯", 0, 3)
+        ]
+
+        self.cards = {}
+        for name, icon, row, col in marketplaces:
+            card = tk.Frame(grid_frame, bg="#f7fafc", bd=1, relief="solid", highlightbackground="#e2e8f0", highlightthickness=1)
+            card.grid(row=row, column=col, sticky="nsew", padx=5)
+
+            lbl_icon = tk.Label(card, text=icon, font=("Segoe UI", 20), bg="#f7fafc")
+            lbl_icon.pack(pady=(10, 0))
+            lbl_name = tk.Label(card, text=name, font=("Segoe UI", 9, "bold"), bg="#f7fafc", fg="#2d3748")
+            lbl_name.pack(pady=(5, 10))
+
+            # Bind clicks
+            for w in (card, lbl_icon, lbl_name):
+                w.bind("<Button-1>", lambda e, m=name: self._select_marketplace(m))
+
+            self.cards[name] = {
+                "frame": card,
+                "icon": lbl_icon,
+                "name": lbl_name
+            }
+
+        # Initialize default selection visually
+        self._select_marketplace("Blinkit")
+
+        # 2. File Upload Area
+        tk.Label(content_frame, text="UPLOAD DATA FILE", font=("Segoe UI", 10, "bold"), bg="white", fg="#2d3748").pack(anchor="w", pady=(0, 10))
+
+        self.upload_area = tk.Frame(content_frame, bg="#f7fafc", bd=1, highlightbackground="#cbd5e0", highlightthickness=2, highlightcolor="#667eea", cursor="hand2")
+        self.upload_area.pack(fill="x", pady=(0, 10))
+
+        # Bind dashed border style (using dashes is hard in Frame, so we use solid with color)
+
+        self.upload_icon = tk.Label(self.upload_area, text="📁", font=("Segoe UI", 24), bg="#f7fafc", fg="#667eea")
+        self.upload_icon.pack(pady=(15, 5))
+
+        self.upload_text = tk.Label(self.upload_area, text="Click to browse or drag & drop", font=("Segoe UI", 11, "bold"), bg="#f7fafc", fg="#2d3748")
+        self.upload_text.pack()
+
+        self.upload_hint = tk.Label(self.upload_area, text="(CSV, XLSX)", font=("Segoe UI", 9), bg="#f7fafc", fg="#718096")
+        self.upload_hint.pack(pady=(0, 15))
+
+        for w in (self.upload_area, self.upload_icon, self.upload_text, self.upload_hint):
+            w.bind("<Button-1>", self._select_file)
+
+        # Selected file label (hidden initially)
+        self.file_info_frame = tk.Frame(content_frame, bg="#f0fff4", bd=1, highlightbackground="#9ae6b4", highlightthickness=1)
+        self.file_info_label = tk.Label(self.file_info_frame, text="✓ No file selected", font=("Segoe UI", 10), bg="#f0fff4", fg="#22543d")
+        self.file_info_label.pack(side="left", padx=10, pady=8)
+
+        # 3. Generate Button & Status
+        self.generate_btn = tk.Button(
+            content_frame,
+            text="GENERATE REPORT",
             font=("Segoe UI", 11, "bold"),
-            padding=8,
-            background="#4472C4",
-            foreground="white"
-        )
-        style.map("Action.TButton", background=[("active", "#335a9f")])
-
-        self.generate_btn = ttk.Button(
-            main_frame,
-            text="Select CSV/Xlsx and Generate Report",
-            style="Action.TButton",
+            bg="#667eea",
+            fg="white",
+            bd=0,
+            activebackground="#764ba2",
+            activeforeground="white",
+            cursor="hand2",
             command=self.generate_report
         )
-        self.generate_btn.pack(pady=(25, 10))
+        self.generate_btn.pack(fill="x", pady=(20, 10), ipady=8)
+
+        # Progress bar
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure("TProgressbar", thickness=4, background="#667eea", troughcolor="white")
+        self.progress_bar = ttk.Progressbar(content_frame, mode='indeterminate', style="TProgressbar")
 
         self.status_var = tk.StringVar(value="")
-        self.status_label = ttk.Label(
-            main_frame,
+        self.status_label = tk.Label(
+            content_frame,
             textvariable=self.status_var,
-            font=("Segoe UI", 10, "bold"),
-            foreground="#28a745"
+            font=("Segoe UI", 9),
+            bg="white",
+            fg="#667eea"
         )
-        self.status_label.pack(pady=(5, 5))
+        self.status_label.pack()
 
-        ttk.Label(
-            main_frame,
-            text="Other marketplaces are coming soon!",
-            font=("Segoe UI", 9, "italic"),
-            foreground="#28a745"
-        ).pack(pady=(5,0))
+        # Coming soon
+        tk.Label(
+            content_frame,
+            text="✨ More marketplaces coming soon!",
+            font=("Segoe UI", 9, "bold"),
+            bg="#f0fff4",
+            fg="#48bb78",
+            padx=10,
+            pady=8
+        ).pack(fill="x", pady=(10, 0))
 
-        # Footer Frame (Developer Info)
-        footer_frame = tk.Frame(self.root, bg="#e9ecef", pady=10, relief="groove", bd=2)
+        # Footer Frame
+        footer_frame = tk.Frame(container, bg="#f7fafc", bd=1, highlightbackground="#e2e8f0", highlightthickness=1)
         footer_frame.pack(fill="x", side="bottom")
         
-        dev_label = tk.Label(
+        tk.Label(
             footer_frame,
             text="👨‍💻 Developer: Abhishek Wagh",
-            font=("Segoe UI", 10, "bold"),
-            bg="#e9ecef",
-            fg="#333"
-        )
-        dev_label.pack()
+            font=("Segoe UI", 9, "bold"),
+            bg="#f7fafc",
+            fg="#718096"
+        ).pack(pady=(10, 2))
         
-        info_text = "🆔 Owner ID: RENEE-723  •  📧 abhishek.wagh@reneecosmetics.in"
-        info_label = tk.Label(
+        tk.Label(
             footer_frame,
-            text=info_text,
-            font=("Segoe UI", 9),
-            bg="#e9ecef",
-            fg="#555"
-        )
-        info_label.pack(pady=(2, 0))
+            text="📍 Owner ID: RENEE-723\n📧 abhishek.wagh@reneecosmetics.in",
+            font=("Segoe UI", 8),
+            bg="#f7fafc",
+            fg="#667eea"
+        ).pack(pady=(0, 10))
     
+    def _select_marketplace(self, marketplace):
+        """Handle marketplace card selection."""
+        self.marketplace_var.set(marketplace)
+
+        # Reset all cards
+        for name, widgets in self.cards.items():
+            bg_color = "#f7fafc"
+            bd_color = "#e2e8f0"
+            widgets["frame"].configure(bg=bg_color, highlightbackground=bd_color)
+            widgets["icon"].configure(bg=bg_color)
+            widgets["name"].configure(bg=bg_color)
+
+        # Highlight selected card
+        if marketplace in self.cards:
+            selected_widgets = self.cards[marketplace]
+            bg_color = "#edf2f7" # Slightly darker background for selected state
+            bd_color = "#667eea" # Highlight border color
+
+            selected_widgets["frame"].configure(bg=bg_color, highlightbackground=bd_color)
+            selected_widgets["icon"].configure(bg=bg_color)
+            selected_widgets["name"].configure(bg=bg_color)
+
+    def _select_file(self, event=None):
+        """Handle file selection from the upload area."""
+        file_path = filedialog.askopenfilename(
+            filetypes=[("CSV files", "*.csv"), ("Excel files", "*.xlsx *.xls")]
+        )
+        if file_path:
+            self.selected_file_path = file_path
+            filename = os.path.basename(file_path)
+            self.file_info_label.config(text=f"✓ {filename}")
+
+            # Show the selected file info frame (by packing it below upload area)
+            self.file_info_frame.pack(fill="x", pady=(0, 10), before=self.generate_btn)
+
+            # Visual feedback on upload area
+            self.upload_area.configure(bg="#edf2f7", highlightbackground="#667eea")
+            self.upload_icon.configure(bg="#edf2f7")
+            self.upload_text.configure(bg="#edf2f7")
+            self.upload_hint.configure(bg="#edf2f7")
+
     def calculate_summary_data(self, df, marketplace):
         """Calculate summary statistics from the DataFrame."""
         if marketplace == "Blinkit":
@@ -206,19 +305,22 @@ class POReportApp:
             return
 
         marketplace = self.marketplace_var.get()
-        if marketplace == "Zepto":
-            messagebox.showinfo("Info", "Zepto integration is coming soon!")
+        if marketplace in ["Amazon", "Meesho", "Zepto"]:
+            messagebox.showinfo("Info", f"{marketplace} integration is coming soon!")
             return
 
-        file_path = filedialog.askopenfilename(
-            filetypes=[("CSV files", "*.csv"), ("Excel files", "*.xlsx *.xls")]
-        )
+        file_path = self.selected_file_path
         if not file_path:
+            messagebox.showwarning("No File Selected", "Please select a file to generate the report.")
             return
 
         self.is_processing = True
-        self.generate_btn.config(state=tk.DISABLED)
+        self.generate_btn.config(state=tk.DISABLED, text="GENERATING...")
         self.status_var.set(f"Processing {marketplace} data...")
+
+        self.progress_bar.pack(fill="x", pady=(0, 10), before=self.status_label)
+        self.progress_bar.start(10)
+
         self.root.update_idletasks()
 
         # Run processing in a background thread
@@ -253,7 +355,9 @@ class POReportApp:
     def _handle_process_error(self, error_msg):
         """Handle errors from the processing thread on the main UI thread."""
         self.is_processing = False
-        self.generate_btn.config(state=tk.NORMAL)
+        self.generate_btn.config(state=tk.NORMAL, text="GENERATE REPORT")
+        self.progress_bar.stop()
+        self.progress_bar.pack_forget()
         self.status_var.set("")
         messagebox.showerror("Error", f"Something went wrong:\n{error_msg}")
 
@@ -261,7 +365,9 @@ class POReportApp:
         """Handle successful processing and prompt user interactions."""
         try:
             self.is_processing = False
-            self.generate_btn.config(state=tk.NORMAL)
+            self.generate_btn.config(state=tk.NORMAL, text="GENERATE REPORT")
+            self.progress_bar.stop()
+            self.progress_bar.pack_forget()
             self.status_var.set("")
 
             marketplace = result['marketplace']
@@ -334,7 +440,9 @@ class POReportApp:
             import traceback
             traceback.print_exc()
             self.is_processing = False
-            self.generate_btn.config(state=tk.NORMAL)
+            self.generate_btn.config(state=tk.NORMAL, text="GENERATE REPORT")
+            self.progress_bar.stop()
+            self.progress_bar.pack_forget()
             self.status_var.set("")
             messagebox.showerror("Error", f"An error occurred:\n{str(e)}")
 
