@@ -2,9 +2,9 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import os
-from tkinter import messagebox
+from utils import format_indian
 
-def process_blinkit(app, file_path):
+def process_blinkit(file_path):
     marketplace = "Blinkit"
     df = pd.read_csv(file_path)
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
@@ -22,7 +22,7 @@ def process_blinkit(app, file_path):
     })
     tracker_summary.insert(0, 'marketplace', marketplace)
     tracker_summary['total_amount'] = tracker_summary['total_amount'].apply(
-        lambda x: f"₹ {app.format_indian(x)}"
+        lambda x: f"₹ {format_indian(x)}"
     )
     tracker_summary = tracker_summary.sort_values('facility_name', ascending=True)
 
@@ -52,20 +52,12 @@ def process_blinkit(app, file_path):
                 col_letter = get_column_letter(col[0].column)
                 ws.column_dimensions[col_letter].width = max_length + 2
 
-    app.show_summary_popup(df, marketplace, has_sku_data=True, sku_count=len(sku_summary))
-    messagebox.showinfo("Success", f"Report created successfully at:\n{output_file}")
-
-    # Ask if user wants to send email BEFORE opening file
-    if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-        if app.send_email_summary(marketplace, app.last_summary, tracker_summary, sku_summary):
-            # Build recipient info for success message
-            recipient_info = f"To: {app.DEFAULT_RECIPIENT}"
-            if app.CC_RECIPIENTS:
-                cc_list = "\n".join([f"  • {email}" for email in app.CC_RECIPIENTS])
-                recipient_info += f"\n\nCC:\n{cc_list}"
-
-            messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
-
-    if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
-        os.startfile(output_file)
-        app.root.destroy()
+    return {
+        "marketplace": marketplace,
+        "df": df,
+        "tracker_df": tracker_summary,
+        "sku_df": sku_summary,
+        "output_file": output_file,
+        "has_sku_data": True,
+        "sku_count": len(sku_summary)
+    }

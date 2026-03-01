@@ -2,9 +2,8 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import os
-from tkinter import messagebox
 
-def process_flipkart(app, file_path):
+def process_flipkart(file_path):
     marketplace = "Flipkart"
     if str(file_path).endswith('.csv'):
         df = pd.read_csv(file_path)
@@ -59,20 +58,12 @@ def process_flipkart(app, file_path):
             col_letter = get_column_letter(col[0].column)
             ws.column_dimensions[col_letter].width = max_length + 2
 
-    app.show_summary_popup(tracker_summary, marketplace, has_sku_data=False, sku_count=0)
-    messagebox.showinfo("Success", f"Report created successfully at:\n{output_file}")
-
-    # Ask if user wants to send email BEFORE opening file (No SKU for Flipkart)
-    if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-        if app.send_email_summary(marketplace, app.last_summary, tracker_summary, None):
-            # Build recipient info for success message
-            recipient_info = f"To: {app.DEFAULT_RECIPIENT}"
-            if app.CC_RECIPIENTS:
-                cc_list = "\n".join([f"  • {email}" for email in app.CC_RECIPIENTS])
-                recipient_info += f"\n\nCC:\n{cc_list}"
-
-            messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
-
-    if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
-        os.startfile(output_file)
-        app.root.destroy()
+    return {
+        "marketplace": marketplace,
+        "df": tracker_summary,
+        "tracker_df": tracker_summary,
+        "sku_df": None,
+        "output_file": output_file,
+        "has_sku_data": False,
+        "sku_count": 0
+    }

@@ -2,9 +2,9 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 import os
-from tkinter import messagebox
+from utils import format_indian, safe_ean_convert
 
-def process_swiggy(app, file_path):
+def process_swiggy(file_path):
     marketplace = "Swiggy"
     if str(file_path).endswith('.csv'):
         df = pd.read_csv(file_path)
@@ -35,7 +35,7 @@ def process_swiggy(app, file_path):
     }, inplace=True)
 
     # Create SKU Summary (similar to Blinkit)
-    df['EAN'] = df['EAN'].apply(app.safe_ean_convert)
+    df['EAN'] = df['EAN'].apply(safe_ean_convert)
 
     sku_summary = df.groupby(['EAN', 'SKUDESCRIPTION'], as_index=False).agg({'ORDEREDQTY': 'sum'})
     sku_summary.rename(columns={
@@ -46,7 +46,7 @@ def process_swiggy(app, file_path):
     sku_summary = sku_summary.sort_values(by='total_units', ascending=False)
 
     # Format PO Value for tracker
-    tracker_summary['PO Value'] = tracker_summary['PO Value'].apply(lambda x: f"₹ {app.format_indian(x)}")
+    tracker_summary['PO Value'] = tracker_summary['PO Value'].apply(lambda x: f"₹ {format_indian(x)}")
 
     timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
 
@@ -157,27 +157,13 @@ def process_swiggy(app, file_path):
         wb_path = output_folder / f"{po_number}.xlsx"
         wb.save(wb_path)
 
-    app.show_summary_popup(tracker_summary, marketplace, has_sku_data=True, sku_count=len(sku_summary))
-
-    messagebox.showinfo(
-        "Success",
-        f"Main report created: {main_output_file.name}\n\n"
-        f"Individual PO workbooks created in:\n{output_folder.name}"
-    )
-
-    # Ask if user wants to send email BEFORE opening files
-    if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-        if app.send_email_summary(marketplace, app.last_summary, tracker_summary, sku_summary):
-            # Build recipient info for success message
-            recipient_info = f"To: {app.DEFAULT_RECIPIENT}"
-            if app.CC_RECIPIENTS:
-                cc_list = "\n".join([f"  • {email}" for email in app.CC_RECIPIENTS])
-                recipient_info += f"\n\nCC:\n{cc_list}"
-
-            messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
-
-    if messagebox.askyesno("Open File", "Do you want to open the main Excel report?"):
-        os.startfile(main_output_file)
-
-    if messagebox.askyesno("Open Folder", "Do you want to open the PO workbooks folder?"):
-        os.startfile(output_folder)
+    return {
+        "marketplace": marketplace,
+        "df": df,
+        "tracker_df": tracker_summary,
+        "sku_df": sku_summary,
+        "output_file": main_output_file,
+        "output_folder": output_folder,
+        "has_sku_data": True,
+        "sku_count": len(sku_summary)
+    }
