@@ -182,7 +182,8 @@ body {{
 
             # Add table headers
             for col in tracker_df.columns:
-                html += f"<th>{col}</th>"
+                display_col = str(col).replace('_', ' ').title().replace('Po ', 'PO ')
+                html += f"<th>{display_col}</th>"
             html += "</tr>\n"
 
             # Add table rows
