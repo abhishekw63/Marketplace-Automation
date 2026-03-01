@@ -7,6 +7,10 @@ from tkinter import ttk, filedialog, messagebox
 import smtplib
 from email.message import EmailMessage
 
+from src.marketplace_automation.marketplaces.blinkit import process_blinkit
+from src.marketplace_automation.marketplaces.flipkart import process_flipkart
+from src.marketplace_automation.marketplaces.swiggy import process_swiggy
+
 class POReportApp:
     """
     A GUI application to generate Purchase Order (PO) reports for different marketplaces.
@@ -133,6 +137,17 @@ class POReportApp:
         if remaining:
             parts.insert(0, remaining)
         return ','.join(parts) + ',' + last3
+
+    @staticmethod
+    def safe_ean_convert(x):
+        """Convert EAN safely from scientific notation."""
+        if pd.isna(x):
+            return ""
+        try:
+            # Convert to string first, then to float, then to int
+            return str(int(float(str(x))))
+        except Exception:
+            return str(x)
     
     def send_email_summary(self, marketplace, summary_data, tracker_df=None, sku_df=None):
         """
@@ -472,336 +487,14 @@ body {{
         )
         if not file_path:
             return
-        
+
         try:
-            # --- Blinkit Logic --- 
             if marketplace == "Blinkit":
-                df = pd.read_csv(file_path)
-                df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
-                df['po_number'] = df['po_number'].astype(str).str.replace(r'\.0$', '', regex=True)
-                df['order_date'] = pd.to_datetime(df['order_date'], dayfirst=True, errors='coerce')
-                df['expiry_date'] = pd.to_datetime(df['expiry_date'], dayfirst=True, errors='coerce')
-                
-                df['order_date'] = df['order_date'].dt.strftime('%d-%m-%Y')
-                df['expiry_date'] = df['expiry_date'].dt.strftime('%d-%m-%Y')
-                tracker_summary = df.groupby(['po_number', 'facility_name'], as_index=False).agg({
-                    'order_date': 'first',
-                    'expiry_date': 'first',
-                    'total_amount': 'sum',
-                    'units_ordered': 'sum'
-                })
-                tracker_summary.insert(0, 'marketplace', marketplace)
-                tracker_summary['total_amount'] = tracker_summary['total_amount'].apply(
-                    lambda x: f"₹ {self.format_indian(x)}"
-                )
-                tracker_summary = tracker_summary.sort_values('facility_name', ascending=True)
-                
-                df['upc'] = df['upc'].apply(lambda x: str(int(float(x))))
-                sku_summary = df.groupby(['upc', 'name'], as_index=False).agg({'units_ordered': 'sum'})
-                sku_summary.rename(columns={'units_ordered': 'total_units'}, inplace=True)
-                sku_summary = sku_summary.sort_values(by='total_units', ascending=False)
-                
-                timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
-                output_file = Path(file_path).parent / f"{marketplace}_PO_Report_{timestamp}.xlsx"
-                
-                with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-                    tracker_summary.to_excel(writer, sheet_name='PO Tracker', index=False)
-                    sku_summary.to_excel(writer, sheet_name='SKU Summary', index=False)
-                    
-                    from openpyxl.styles import Alignment
-                    from openpyxl.utils import get_column_letter
-                    workbook = writer.book
-                    
-                    for sheet_name in ['PO Tracker', 'SKU Summary']:
-                        ws = workbook[sheet_name]
-                        for row in ws.iter_rows():
-                            for cell in row:
-                                cell.alignment = Alignment(horizontal='center', vertical='center')
-                        for col in ws.columns:
-                            max_length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in col)
-                            col_letter = get_column_letter(col[0].column)
-                            ws.column_dimensions[col_letter].width = max_length + 2
-                
-                self.show_summary_popup(df, marketplace, has_sku_data=True, sku_count=len(sku_summary))
-                messagebox.showinfo("Success", f"Report created successfully at:\n{output_file}")
-                
-                # Ask if user wants to send email BEFORE opening file
-                if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-                    if self.send_email_summary(marketplace, self.last_summary, tracker_summary, sku_summary):
-                        # Build recipient info for success message
-                        recipient_info = f"To: {self.DEFAULT_RECIPIENT}"
-                        if self.CC_RECIPIENTS:
-                            cc_list = "\n".join([f"  • {email}" for email in self.CC_RECIPIENTS])
-                            recipient_info += f"\n\nCC:\n{cc_list}"
-                        
-                        messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
-                
-                if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
-                    os.startfile(output_file)
-                    self.root.destroy()
-            
-            # --- Flipkart Logic ---
+                process_blinkit(self, file_path)
             elif marketplace == "Flipkart":
-                if str(file_path).endswith('.csv'):
-                    df = pd.read_csv(file_path)
-                else:
-                    df = pd.read_excel(file_path)
-                
-                cols_map = {
-                    "Purchase Order ID": "PO",
-                    "Origin Warehouse": "Location",
-                    "Order Date": "Order Date",
-                    "Expiry Date": "Expiry Date",
-                    "Total Amount": "PO Value",
-                    "Total Ordered Quantity": "PO Qty"
-                }
-                df = df[list(cols_map.keys())].rename(columns=cols_map)
-                
-                df["Order Date"] = pd.to_datetime(df["Order Date"], errors="coerce").dt.strftime('%d-%m-%Y')
-                df["Expiry Date"] = pd.to_datetime(df["Expiry Date"], errors="coerce").dt.strftime('%d-%m-%Y')
-                
-                FLIPKART_ALPHA_LOCS = [
-                    "bhi_pad_wh_nl_01nl",
-                    "ban_ven_wh_nl_01nl",
-                    "frk_bts",
-                    "gur_san_wh_nl_01nl",
-                    "malur_bts",
-                    "nad_har_wh_kl_nl_01nl"
-                ]
-                
-                df["Marketplace"] = df["Location"].apply(
-                    lambda x: "Flipkart Alpha" if x in FLIPKART_ALPHA_LOCS else "Flipkart Hyperlocal"
-                )
-                
-                tracker_summary = df[["Marketplace", "PO", "Location", "Order Date", "Expiry Date", "PO Value", "PO Qty"]].copy()
-                tracker_summary = tracker_summary.sort_values("Location", ascending=True)
-                
-                timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
-                output_file = Path(file_path).parent / f"{marketplace}_PO_Report_{timestamp}.xlsx"
-                
-                with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-                    tracker_summary.to_excel(writer, sheet_name='PO Tracker', index=False)
-                    
-                    from openpyxl.styles import Alignment
-                    from openpyxl.utils import get_column_letter
-                    workbook = writer.book
-                    
-                    ws = workbook['PO Tracker']
-                    for row in ws.iter_rows():
-                        for cell in row:
-                            cell.alignment = Alignment(horizontal='center', vertical='center')
-                    for col in ws.columns:
-                        max_length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in col)
-                        col_letter = get_column_letter(col[0].column)
-                        ws.column_dimensions[col_letter].width = max_length + 2
-                
-                self.show_summary_popup(tracker_summary, marketplace, has_sku_data=False, sku_count=0)
-                messagebox.showinfo("Success", f"Report created successfully at:\n{output_file}")
-                
-                # Ask if user wants to send email BEFORE opening file (No SKU for Flipkart)
-                if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-                    if self.send_email_summary(marketplace, self.last_summary, tracker_summary, None):
-                        # Build recipient info for success message
-                        recipient_info = f"To: {self.DEFAULT_RECIPIENT}"
-                        if self.CC_RECIPIENTS:
-                            cc_list = "\n".join([f"  • {email}" for email in self.CC_RECIPIENTS])
-                            recipient_info += f"\n\nCC:\n{cc_list}"
-                        
-                        messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
-                
-                if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
-                    os.startfile(output_file)
-                    self.root.destroy()
-            
-            # --- Swiggy Logic ---
+                process_flipkart(self, file_path)
             elif marketplace == "Swiggy":
-                if str(file_path).endswith('.csv'):
-                    df = pd.read_csv(file_path)
-                else:
-                    df = pd.read_excel(file_path)
-                
-                df.columns = df.columns.str.strip().str.replace(" ", "").str.upper()
-                df = df[df['STATUS'] == 'CONFIRMED']
-                
-                df['POCREATEDAT'] = pd.to_datetime(df['POCREATEDAT'], dayfirst=True, errors='coerce').dt.date
-                df['POEXPIRYDATE'] = pd.to_datetime(df['POEXPIRYDATE'], dayfirst=True, errors='coerce').dt.date
-                
-                # Aggregate PO Tracker
-                tracker_summary = df.groupby(['PONUMBER', 'FACILITYNAME'], as_index=False).agg({
-                    'POCREATEDAT': 'first',
-                    'POEXPIRYDATE': 'first',
-                    'POLINEVALUEWITHTAX': 'sum',
-                    'ORDEREDQTY': 'sum'
-                })
-                tracker_summary.insert(0, 'Marketplace', 'Swiggy')
-                tracker_summary.rename(columns={
-                    'PONUMBER': 'PO',
-                    'FACILITYNAME': 'Location',
-                    'POCREATEDAT': 'Order Date',
-                    'POEXPIRYDATE': 'Expiry Date',
-                    'POLINEVALUEWITHTAX': 'PO Value',
-                    'ORDEREDQTY': 'PO Qty'
-                }, inplace=True)
-                
-                # Create SKU Summary (similar to Blinkit)
-                # Fix EAN conversion - handle scientific notation properly
-                def safe_ean_convert(x):
-                    if pd.isna(x):
-                        return ""
-                    try:
-                        # Convert to string first, then to float, then to int
-                        return str(int(float(str(x))))
-                    except:
-                        return str(x)
-                
-                df['EAN'] = df['EAN'].apply(safe_ean_convert)
-                
-                sku_summary = df.groupby(['EAN', 'SKUDESCRIPTION'], as_index=False).agg({'ORDEREDQTY': 'sum'})
-                sku_summary.rename(columns={
-                    'EAN': 'upc',
-                    'SKUDESCRIPTION': 'name',
-                    'ORDEREDQTY': 'total_units'
-                }, inplace=True)
-                sku_summary = sku_summary.sort_values(by='total_units', ascending=False)
-                
-                # Format PO Value for tracker
-                tracker_summary['PO Value'] = tracker_summary['PO Value'].apply(lambda x: f"₹ {self.format_indian(x)}")
-                
-                timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
-                
-                # Create main Swiggy report (like Blinkit)
-                main_output_file = Path(file_path).parent / f"{marketplace}_PO_Report_{timestamp}.xlsx"
-                
-                with pd.ExcelWriter(main_output_file, engine='openpyxl') as writer:
-                    tracker_summary.to_excel(writer, sheet_name='PO Tracker', index=False)
-                    sku_summary.to_excel(writer, sheet_name='SKU Summary', index=False)
-                    
-                    from openpyxl.styles import Alignment
-                    from openpyxl.utils import get_column_letter
-                    workbook = writer.book
-                    
-                    for sheet_name in ['PO Tracker', 'SKU Summary']:
-                        ws = workbook[sheet_name]
-                        for row in ws.iter_rows():
-                            for cell in row:
-                                cell.alignment = Alignment(horizontal='center', vertical='center')
-                        for col in ws.columns:
-                            max_length = max(len(str(cell.value)) if cell.value is not None else 0 for cell in col)
-                            col_letter = get_column_letter(col[0].column)
-                            ws.column_dimensions[col_letter].width = max_length + 2
-                
-                # Create separate folder for individual PO workbooks
-                output_folder = Path(file_path).parent / f"Swiggy_PO_Workbooks_{timestamp}"
-                output_folder.mkdir(parents=True, exist_ok=True)
-                
-                def format_sheet(ws, ean_columns=None):
-                    from openpyxl.styles import Alignment
-                    from openpyxl.utils import get_column_letter
-                    
-                    for row in ws.iter_rows():
-                        for cell in row:
-                            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-                    
-                    if ean_columns:
-                        for col_letter in ean_columns:
-                            for cell in ws[col_letter]:
-                                cell.number_format = '@'
-                                if cell.value and str(cell.value).replace('.', '').isdigit():
-                                    cell.value = str(int(float(cell.value)))
-                    
-                    for col in ws.columns:
-                        max_length = 0
-                        col_letter = get_column_letter(col[0].column)
-                        for cell in col:
-                            try:
-                                if cell.value:
-                                    max_length = max(max_length, len(str(cell.value)))
-                            except:
-                                pass
-                        adjusted_width = min(max_length + 4, 50)
-                        ws.column_dimensions[col_letter].width = adjusted_width
-                
-                from openpyxl import Workbook
-                from openpyxl.styles import Font
-                
-                for po_number in tracker_summary['PO']:
-                    po_data = df[df['PONUMBER'] == po_number]
-                    # city = po_data['CITY'].iloc[0]
-                    facility = po_data['FACILITYNAME'].iloc[0]
-                    wb = Workbook()
-                    
-                    ws_po = wb.active
-                    ws_po.title = "PO Sheet"
-                    ws_po.append(['EAN', 'SKUDESCRIPTION', 'UNITBASEDCOST', 'ORDEREDQTY'])
-                    for idx, row in po_data.iterrows():
-                        # Safe EAN conversion
-                        try:
-                            ean_value = str(int(float(row['EAN']))) if pd.notna(row['EAN']) else ""
-                        except:
-                            ean_value = str(row['EAN']) if pd.notna(row['EAN']) else ""
-                        
-                        ws_po.append([
-                            ean_value,
-                            row['SKUDESCRIPTION'],
-                            row['UNITBASEDCOST'],
-                            row['ORDEREDQTY']
-                        ])
-                    format_sheet(ws_po, ean_columns=['A'])
-                    
-                    ws_scan = wb.create_sheet("Scan Sheet")
-                    ws_scan.append(["Scan", "EAN", "Title", "PO Qty", "Qty", "Box"])
-                    for r in range(2, len(po_data) + 20):
-                        ws_scan[f'B{r}'] = f'=IF(A{r}="","",TEXT(INDEX(\'PO Sheet\'!A:A,MATCH(A{r},\'PO Sheet\'!A:A,0)),"0"))'
-                        ws_scan[f'C{r}'] = f'=IF(A{r}="","",INDEX(\'PO Sheet\'!B:B,MATCH(A{r},\'PO Sheet\'!A:A,0)))'
-                        ws_scan[f'D{r}'] = f'=IF(A{r}="","",INDEX(\'PO Sheet\'!D:D,MATCH(A{r},\'PO Sheet\'!A:A,0)))'
-                    format_sheet(ws_scan, ean_columns=['A', 'B'])
-                    
-                    ws_packing = wb.create_sheet("Packing Slip")
-                    # ws_packing['A1'] = f"{po_number} Swiggy {city}"
-                    ws_packing['A1'] = f"{po_number} Swiggy {facility}"
-                    ws_packing['A1'].font = Font(bold=True, size=12)
-                    ws_packing.merge_cells('A1:D1')
-                    ws_packing.append(["Scan", "Title", "Box", "Total"])
-                    for r in range(3, len(po_data) + 3):
-                        scan_row = r - 1
-                        ws_packing[f'A{r}'] = f'=IF(\'Scan Sheet\'!A{scan_row}="","",TEXT(\'Scan Sheet\'!A{scan_row},"0"))'
-                        ws_packing[f'B{r}'] = f'=IF(\'Scan Sheet\'!A{scan_row}="","",\'Scan Sheet\'!C{scan_row})'
-                        ws_packing[f'C{r}'] = f'=IF(\'Scan Sheet\'!A{scan_row}="","",\'Scan Sheet\'!F{scan_row})'
-                        ws_packing[f'D{r}'] = f'=IF(\'Scan Sheet\'!A{scan_row}="","",\'Scan Sheet\'!D{scan_row})'
-                    total_row = len(po_data) + 3
-                    ws_packing[f'D{total_row}'] = f"=SUBTOTAL(109,D3:D{total_row-1})"
-                    ws_packing[f'D{total_row}'].font = Font(bold=True)
-                    format_sheet(ws_packing, ean_columns=['A'])
-                    
-                    wb_path = output_folder / f"{po_number}.xlsx"
-                    wb.save(wb_path)
-                
-                self.show_summary_popup(tracker_summary, marketplace, has_sku_data=True, sku_count=len(sku_summary))
-                
-                messagebox.showinfo(
-                    "Success", 
-                    f"Main report created: {main_output_file.name}\n\n"
-                    f"Individual PO workbooks created in:\n{output_folder.name}"
-                )
-                
-                # Ask if user wants to send email BEFORE opening files
-                if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-                    if self.send_email_summary(marketplace, self.last_summary, tracker_summary, sku_summary):
-                        # Build recipient info for success message
-                        recipient_info = f"To: {self.DEFAULT_RECIPIENT}"
-                        if self.CC_RECIPIENTS:
-                            cc_list = "\n".join([f"  • {email}" for email in self.CC_RECIPIENTS])
-                            recipient_info += f"\n\nCC:\n{cc_list}"
-                        
-                        messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
-                
-                if messagebox.askyesno("Open File", "Do you want to open the main Excel report?"):
-                    os.startfile(main_output_file)
-                
-                if messagebox.askyesno("Open Folder", "Do you want to open the PO workbooks folder?"):
-                    os.startfile(output_folder)
-            
-            # --- Zepto (Future Placeholder) ---
+                process_swiggy(self, file_path)
             elif marketplace == "Zepto":
                 messagebox.showinfo("Info", "Zepto integration is coming soon!")
         
