@@ -7,10 +7,9 @@ from tkinter import ttk, filedialog, messagebox
 import smtplib
 from email.message import EmailMessage
 
-
-from marketplaces.blinkit import process_blinkit
-from marketplaces.flipkart import process_flipkart
-from marketplaces.swiggy import process_swiggy
+from src.marketplace_automation.marketplaces.blinkit import process_blinkit
+from src.marketplace_automation.marketplaces.flipkart import process_flipkart
+from src.marketplace_automation.marketplaces.swiggy import process_swiggy
 
 class POReportApp:
     """
@@ -29,18 +28,18 @@ class POReportApp:
     # CC Recipients (add email addresses here, one per line)
     CC_RECIPIENTS = [
         "onlineb2b@reneecosmetics.in",
-        # "pintu.sharma@reneecosmetics.in",
-        # "vikram.dabhi@reneecosmetics.in",
-        # # "tanishq.gaggar@reneecosmetics.in",
-        # "jitendra.r@reneecosmetics.in",
-        # "aritra.barmanray@reneecosmetics.in",
-        # "yogesh.parekh@reneecosmetics.in",
-        # "mudit.porwal@reneecosmetics.in",
-        # # "kishan.limbachiya@reneecosmetics.in",
-        # # "jayesh.makwana@reneecosmetics.in",
-        # "rahul.gohel@reneecosmetics.in",
-        # "rahul.soni@reneecosmetics.in",
-        # "ketan.jain@reneecosmetics.in"
+        "pintu.sharma@reneecosmetics.in",
+        "vikram.dabhi@reneecosmetics.in",
+        # "tanishq.gaggar@reneecosmetics.in",
+        "jitendra.r@reneecosmetics.in",
+        "aritra.barmanray@reneecosmetics.in",
+        "yogesh.parekh@reneecosmetics.in",
+        "mudit.porwal@reneecosmetics.in",
+        # "kishan.limbachiya@reneecosmetics.in",
+        # "jayesh.makwana@reneecosmetics.in",
+        "rahul.gohel@reneecosmetics.in",
+        "rahul.soni@reneecosmetics.in",
+        "ketan.jain@reneecosmetics.in"
     ]
     
     # Expiration Configuration (Set this date to when you want the app to expire)
