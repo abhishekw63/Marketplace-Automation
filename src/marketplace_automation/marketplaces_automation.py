@@ -194,7 +194,7 @@ class POReportApp:
         
         return {
             'total_pos': total_pos,
-            'total_units': total_units,
+            'total_units': total_units, 
             'total_value': total_value,
             'min_date': min_date_str,
             'max_date': max_date_str
@@ -259,75 +259,84 @@ class POReportApp:
 
     def _handle_process_success(self, result):
         """Handle successful processing and prompt user interactions."""
-        self.is_processing = False
-        self.generate_btn.config(state=tk.NORMAL)
-        self.status_var.set("")
-
-        marketplace = result['marketplace']
-        output_file = result['output_file']
-        has_sku_data = result['has_sku_data']
-        sku_count = result['sku_count']
-
-        # Build success message
-        success_msg = f"Report created successfully at:\n{output_file}"
-        if marketplace == "Swiggy":
-             output_folder = result.get('output_folder')
-             success_msg = f"Main report created: {output_file.name}\n\nIndividual PO workbooks created in:\n{output_folder.name}"
-
-        # Show summary popup
-        sku_status = f"SKU Data: ✅ Available ({sku_count} SKUs)" if has_sku_data else f"SKU Data: ❌ Not Available ({marketplace} format)"
-
-        summary_text = (
-            f"📊 SUMMARY REPORT 📊\n\n"
-            f"Total POs: {self.last_summary['total_pos']}\n"
-            f"Order Date Range: {self.last_summary['min_date']} to {self.last_summary['max_date']}\n"
-            f"Total Units Ordered: {format_indian(self.last_summary['total_units'])}\n"
-            f"Total Order Value: ₹ {format_indian(self.last_summary['total_value'])}\n"
-            f"{sku_status}"
-        )
-
-        messagebox.showinfo("Success", success_msg)
-        messagebox.showinfo("PO Summary", summary_text)
-
-        # Ask if user wants to send email
-        if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-            self.status_var.set("Sending email...")
-            self.root.update_idletasks()
-
-            # We can run email sending synchronously here or in a thread,
-            # for simplicity we'll block the UI briefly since it's an end-step
-            success, err_msg = EmailService.send_email_summary(
-                marketplace,
-                self.last_summary,
-                result['tracker_df'],
-                result['sku_df']
-            )
-
+        try:
+            self.is_processing = False
+            self.generate_btn.config(state=tk.NORMAL)
             self.status_var.set("")
 
-            if success:
-                recipient_info = f"To: {Config.DEFAULT_RECIPIENT}"
-                if Config.CC_RECIPIENTS:
-                    cc_list = "\n".join([f"  • {email}" for email in Config.CC_RECIPIENTS])
-                    recipient_info += f"\n\nCC:\n{cc_list}"
-                messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
+            marketplace = result['marketplace']
+            output_file = result['output_file']
+            has_sku_data = result['has_sku_data']
+            sku_count = result['sku_count']
+
+            # Build success message
+            success_msg = f"Report created successfully at:\n{output_file}"
+            if marketplace == "Swiggy":
+                 output_folder = result.get('output_folder')
+                 success_msg = f"Main report created: {output_file.name}\n\nIndividual PO workbooks created in:\n{output_folder.name}"
+
+            # Show summary popup
+            sku_status = f"SKU Data: ✅ Available ({sku_count} SKUs)" if has_sku_data else f"SKU Data: ❌ Not Available ({marketplace} format)"
+
+            summary_text = (
+                f"📊 SUMMARY REPORT 📊\n\n"
+                f"Total POs: {self.last_summary['total_pos']}\n"
+                f"Order Date Range: {self.last_summary['min_date']} to {self.last_summary['max_date']}\n"
+                f"Total Units Ordered: {format_indian(self.last_summary['total_units'])}\n"
+                f"Total Order Value: ₹ {format_indian(self.last_summary['total_value'])}\n"
+                f"{sku_status}"
+            )
+
+            messagebox.showinfo("Success", success_msg)
+            messagebox.showinfo("PO Summary", summary_text)
+
+            # Ask if user wants to send email
+            if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
+                self.status_var.set("Sending email...")
+                self.root.update_idletasks()
+
+                # We can run email sending synchronously here or in a thread,
+                # for simplicity we'll block the UI briefly since it's an end-step
+                success, err_msg = EmailService.send_email_summary(
+                    marketplace,
+                    self.last_summary,
+                    result['tracker_df'],
+                    result['sku_df']
+                )
+
+                self.status_var.set("")
+
+                if success:
+                    recipient_info = f"To: {Config.DEFAULT_RECIPIENT}"
+                    if Config.CC_RECIPIENTS:
+                        cc_list = "\n".join([f"  • {email}" for email in Config.CC_RECIPIENTS])
+                        recipient_info += f"\n\nCC:\n{cc_list}"
+                    messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
             else:
                 messagebox.showerror("Email Error", f"Failed to send email:\n{err_msg}")
 
-        # Ask to open files
-        if marketplace == "Swiggy":
-             if messagebox.askyesno("Open File", "Do you want to open the main Excel report?"):
-                 os.startfile(output_file)
-             if messagebox.askyesno("Open Folder", "Do you want to open the PO workbooks folder?"):
-                 os.startfile(result['output_folder'])
-        else:
-             if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
-                 os.startfile(output_file)
-                 self.root.destroy()
+            # Ask to open files
+            if marketplace == "Swiggy":
+                if messagebox.askyesno("Open File", "Do you want to open the main Excel report?"):
+                    os.startfile(output_file)
+                if messagebox.askyesno("Open Folder", "Do you want to open the PO workbooks folder?"):
+                    os.startfile(result['output_folder'])
+            else:
+                if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
+                    os.startfile(output_file)
+                    self.root.destroy()
 
-        if marketplace != "Swiggy":
-             # original logic destroyed root for blinkit/flipkart if they opened file
-             pass
+            if marketplace != "Swiggy":
+                # original logic destroyed root for blinkit/flipkart if they opened file
+                pass
+        
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.is_processing = False
+            self.generate_btn.config(state=tk.NORMAL)
+            self.status_var.set("")
+            messagebox.showerror("Error", f"An error occurred:\n{str(e)}")
 
 def main():
     root = tk.Tk()

@@ -21,9 +21,6 @@ def process_blinkit(file_path):
         'units_ordered': 'sum'
     })
     tracker_summary.insert(0, 'marketplace', marketplace)
-    tracker_summary['total_amount'] = tracker_summary['total_amount'].apply(
-        lambda x: f"₹ {format_indian(x)}"
-    )
     tracker_summary = tracker_summary.sort_values('facility_name', ascending=True)
 
     df['upc'] = df['upc'].apply(lambda x: str(int(float(x))))
@@ -34,8 +31,14 @@ def process_blinkit(file_path):
     timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
     output_file = Path(file_path).parent / f"{marketplace}_PO_Report_{timestamp}.xlsx"
 
+    # Create a copy for Excel export with formatted amounts
+    tracker_summary_excel = tracker_summary.copy()
+    tracker_summary_excel['total_amount'] = tracker_summary_excel['total_amount'].apply(
+        lambda x: f"₹ {format_indian(x)}"
+    )
+
     with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-        tracker_summary.to_excel(writer, sheet_name='PO Tracker', index=False)
+        tracker_summary_excel.to_excel(writer, sheet_name='PO Tracker', index=False)
         sku_summary.to_excel(writer, sheet_name='SKU Summary', index=False)
 
         from openpyxl.styles import Alignment

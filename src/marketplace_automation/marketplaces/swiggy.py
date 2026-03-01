@@ -45,16 +45,17 @@ def process_swiggy(file_path):
     }, inplace=True)
     sku_summary = sku_summary.sort_values(by='total_units', ascending=False)
 
-    # Format PO Value for tracker
-    tracker_summary['PO Value'] = tracker_summary['PO Value'].apply(lambda x: f"₹ {format_indian(x)}")
-
     timestamp = datetime.now().strftime("%d_%m_%Y__%H_%M_%S")
 
     # Create main Swiggy report (like Blinkit)
     main_output_file = Path(file_path).parent / f"{marketplace}_PO_Report_{timestamp}.xlsx"
 
+    # Create a copy for Excel export with formatted amounts
+    tracker_summary_excel = tracker_summary.copy()
+    tracker_summary_excel['PO Value'] = tracker_summary_excel['PO Value'].apply(lambda x: f"₹ {format_indian(x)}")
+
     with pd.ExcelWriter(main_output_file, engine='openpyxl') as writer:
-        tracker_summary.to_excel(writer, sheet_name='PO Tracker', index=False)
+        tracker_summary_excel.to_excel(writer, sheet_name='PO Tracker', index=False)
         sku_summary.to_excel(writer, sheet_name='SKU Summary', index=False)
 
         from openpyxl.styles import Alignment
