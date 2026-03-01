@@ -24,8 +24,9 @@ class POReportApp:
         """Initialize the main window and configure the UI."""
         self.root = root
         self.root.title("PO Report Generator")
-        self.root.geometry("460x320")
+        self.root.geometry("550x450")
         self.root.resizable(False, False)
+        self.root.configure(bg="#f4f6f9")
         self.marketplace_var = tk.StringVar(value="Blinkit")
         self.last_summary = {}
         self.is_processing = False
@@ -70,40 +71,93 @@ class POReportApp:
     
     def _build_ui(self):
         """Construct the Tkinter widgets for the application."""
-        ttk.Label(self.root, text="PO Report Generator", font=("Segoe UI", 16, "bold")).pack(pady=(20, 10))
-        ttk.Label(self.root, text="Select Marketplace:").pack(pady=(10, 5))
+        style = ttk.Style()
+        style.theme_use('clam')
+
+        # Style configurations
+        style.configure("TLabel", font=("Segoe UI", 10), background="#f4f6f9")
+        style.configure("Header.TLabel", font=("Segoe UI", 18, "bold"), foreground="#4472C4", background="white")
+        style.configure("SubHeader.TLabel", font=("Segoe UI", 10, "italic"), foreground="gray", background="white")
+
+        # Header Frame
+        header_frame = tk.Frame(self.root, bg="white", pady=15, relief="solid", bd=0)
+        header_frame.pack(fill="x", side="top")
+
+        ttk.Label(header_frame, text="📊 PO Report Generator", style="Header.TLabel").pack()
+        ttk.Label(header_frame, text="Automated Purchase Order Intelligence System", style="SubHeader.TLabel").pack()
+
+        # Main Content Frame
+        main_frame = tk.Frame(self.root, bg="#f4f6f9", pady=20)
+        main_frame.pack(fill="both", expand=True)
+
+        ttk.Label(main_frame, text="Select Marketplace:").pack(pady=(10, 5))
+
+        style.configure("TCombobox", padding=5, font=("Segoe UI", 11))
         self.marketplace_dropdown = ttk.Combobox(
-            self.root,
+            main_frame,
             textvariable=self.marketplace_var,
             values=["Blinkit", "Flipkart", "Swiggy", "Zepto"],
             state="readonly",
-            width=25
+            width=30,
+            font=("Segoe UI", 11)
         )
-        self.marketplace_dropdown.pack()
+        self.marketplace_dropdown.pack(pady=5)
+
+        style.configure(
+            "Action.TButton",
+            font=("Segoe UI", 11, "bold"),
+            padding=8,
+            background="#4472C4",
+            foreground="white"
+        )
+        style.map("Action.TButton", background=[("active", "#335a9f")])
 
         self.generate_btn = ttk.Button(
-            self.root,
+            main_frame,
             text="Select CSV/Xlsx and Generate Report",
+            style="Action.TButton",
             command=self.generate_report
         )
-        self.generate_btn.pack(pady=(20, 5))
+        self.generate_btn.pack(pady=(25, 10))
 
         self.status_var = tk.StringVar(value="")
-        self.status_label = ttk.Label(self.root, textvariable=self.status_var, font=("Segoe UI", 9), foreground="blue")
-        self.status_label.pack(pady=(0, 10))
+        self.status_label = ttk.Label(
+            main_frame,
+            textvariable=self.status_var,
+            font=("Segoe UI", 10, "bold"),
+            foreground="#28a745"
+        )
+        self.status_label.pack(pady=(5, 5))
 
         ttk.Label(
-            self.root,
+            main_frame,
             text="Other marketplaces are coming soon!",
             font=("Segoe UI", 9, "italic"),
-            foreground="green"
-        ).pack()
-        ttk.Label(
-            self.root,
-            text=f"Last Updated: {datetime.now().strftime('%d-%m-%Y')} | Owner: RENEE-723",
-            font=("Segoe UI", 8),
-            foreground="gray"
-        ).pack(pady=(5, 0))
+            foreground="#28a745"
+        ).pack(pady=(5,0))
+
+        # Footer Frame (Developer Info)
+        footer_frame = tk.Frame(self.root, bg="#e9ecef", pady=10, relief="groove", bd=2)
+        footer_frame.pack(fill="x", side="bottom")
+        
+        dev_label = tk.Label(
+            footer_frame,
+            text="👨‍💻 Developer: Abhishek Wagh",
+            font=("Segoe UI", 10, "bold"),
+            bg="#e9ecef",
+            fg="#333"
+        )
+        dev_label.pack()
+        
+        info_text = "🆔 Owner ID: RENEE-723  •  📧 abhishek.wagh@reneecosmetics.in"
+        info_label = tk.Label(
+            footer_frame,
+            text=info_text,
+            font=("Segoe UI", 9),
+            bg="#e9ecef",
+            fg="#555"
+        )
+        info_label.pack(pady=(2, 0))
     
     def calculate_summary_data(self, df, marketplace):
         """Calculate summary statistics from the DataFrame."""
@@ -140,7 +194,7 @@ class POReportApp:
         
         return {
             'total_pos': total_pos,
-            'total_units': total_units,
+            'total_units': total_units, 
             'total_value': total_value,
             'min_date': min_date_str,
             'max_date': max_date_str
@@ -186,7 +240,7 @@ class POReportApp:
                 return
                 
             # Calculate summary data for UI and Email
-            self.last_summary = self.calculate_summary_data(result['df'], marketplace)
+            self.last_summary = self.calculate_summary_data(result['tracker_df'], marketplace)
             
             # Update UI on success
             self.root.after(0, self._handle_process_success, result)
@@ -205,75 +259,84 @@ class POReportApp:
 
     def _handle_process_success(self, result):
         """Handle successful processing and prompt user interactions."""
-        self.is_processing = False
-        self.generate_btn.config(state=tk.NORMAL)
-        self.status_var.set("")
-
-        marketplace = result['marketplace']
-        output_file = result['output_file']
-        has_sku_data = result['has_sku_data']
-        sku_count = result['sku_count']
-
-        # Build success message
-        success_msg = f"Report created successfully at:\n{output_file}"
-        if marketplace == "Swiggy":
-             output_folder = result.get('output_folder')
-             success_msg = f"Main report created: {output_file.name}\n\nIndividual PO workbooks created in:\n{output_folder.name}"
-
-        # Show summary popup
-        sku_status = f"SKU Data: ✅ Available ({sku_count} SKUs)" if has_sku_data else f"SKU Data: ❌ Not Available ({marketplace} format)"
-
-        summary_text = (
-            f"📊 SUMMARY REPORT 📊\n\n"
-            f"Total POs: {self.last_summary['total_pos']}\n"
-            f"Order Date Range: {self.last_summary['min_date']} to {self.last_summary['max_date']}\n"
-            f"Total Units Ordered: {format_indian(self.last_summary['total_units'])}\n"
-            f"Total Order Value: ₹ {format_indian(self.last_summary['total_value'])}\n"
-            f"{sku_status}"
-        )
-
-        messagebox.showinfo("Success", success_msg)
-        messagebox.showinfo("PO Summary", summary_text)
-
-        # Ask if user wants to send email
-        if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-            self.status_var.set("Sending email...")
-            self.root.update_idletasks()
-
-            # We can run email sending synchronously here or in a thread,
-            # for simplicity we'll block the UI briefly since it's an end-step
-            success, err_msg = EmailService.send_email_summary(
-                marketplace,
-                self.last_summary,
-                result['tracker_df'],
-                result['sku_df']
-            )
-
+        try:
+            self.is_processing = False
+            self.generate_btn.config(state=tk.NORMAL)
             self.status_var.set("")
 
-            if success:
-                recipient_info = f"To: {Config.DEFAULT_RECIPIENT}"
-                if Config.CC_RECIPIENTS:
-                    cc_list = "\n".join([f"  • {email}" for email in Config.CC_RECIPIENTS])
-                    recipient_info += f"\n\nCC:\n{cc_list}"
-                messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
+            marketplace = result['marketplace']
+            output_file = result['output_file']
+            has_sku_data = result['has_sku_data']
+            sku_count = result['sku_count']
+
+            # Build success message
+            success_msg = f"Report created successfully at:\n{output_file}"
+            if marketplace == "Swiggy":
+                 output_folder = result.get('output_folder')
+                 success_msg = f"Main report created: {output_file.name}\n\nIndividual PO workbooks created in:\n{output_folder.name}"
+
+            # Show summary popup
+            sku_status = f"SKU Data: ✅ Available ({sku_count} SKUs)" if has_sku_data else f"SKU Data: ❌ Not Available ({marketplace} format)"
+
+            summary_text = (
+                f"📊 SUMMARY REPORT 📊\n\n"
+                f"Total POs: {self.last_summary['total_pos']}\n"
+                f"Order Date Range: {self.last_summary['min_date']} to {self.last_summary['max_date']}\n"
+                f"Total Units Ordered: {format_indian(self.last_summary['total_units'])}\n"
+                f"Total Order Value: ₹ {format_indian(self.last_summary['total_value'])}\n"
+                f"{sku_status}"
+            )
+
+            messagebox.showinfo("Success", success_msg)
+            messagebox.showinfo("PO Summary", summary_text)
+
+            # Ask if user wants to send email
+            if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
+                self.status_var.set("Sending email...")
+                self.root.update_idletasks()
+
+                # We can run email sending synchronously here or in a thread,
+                # for simplicity we'll block the UI briefly since it's an end-step
+                success, err_msg = EmailService.send_email_summary(
+                    marketplace,
+                    self.last_summary,
+                    result['tracker_df'],
+                    result['sku_df']
+                )
+
+                self.status_var.set("")
+
+                if success:
+                    recipient_info = f"To: {Config.DEFAULT_RECIPIENT}"
+                    if Config.CC_RECIPIENTS:
+                        cc_list = "\n".join([f"  • {email}" for email in Config.CC_RECIPIENTS])
+                        recipient_info += f"\n\nCC:\n{cc_list}"
+                    messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
             else:
                 messagebox.showerror("Email Error", f"Failed to send email:\n{err_msg}")
 
-        # Ask to open files
-        if marketplace == "Swiggy":
-             if messagebox.askyesno("Open File", "Do you want to open the main Excel report?"):
-                 os.startfile(output_file)
-             if messagebox.askyesno("Open Folder", "Do you want to open the PO workbooks folder?"):
-                 os.startfile(result['output_folder'])
-        else:
-             if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
-                 os.startfile(output_file)
-                 self.root.destroy()
+            # Ask to open files
+            if marketplace == "Swiggy":
+                if messagebox.askyesno("Open File", "Do you want to open the main Excel report?"):
+                    os.startfile(output_file)
+                if messagebox.askyesno("Open Folder", "Do you want to open the PO workbooks folder?"):
+                    os.startfile(result['output_folder'])
+            else:
+                if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
+                    os.startfile(output_file)
+                    self.root.destroy()
 
-        if marketplace != "Swiggy":
-             # original logic destroyed root for blinkit/flipkart if they opened file
-             pass
+            if marketplace != "Swiggy":
+                # original logic destroyed root for blinkit/flipkart if they opened file
+                pass
+        
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.is_processing = False
+            self.generate_btn.config(state=tk.NORMAL)
+            self.status_var.set("")
+            messagebox.showerror("Error", f"An error occurred:\n{str(e)}")
 
 def main():
     root = tk.Tk()
