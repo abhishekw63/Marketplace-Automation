@@ -26,14 +26,16 @@ class POReportApp:
         "onlineb2b@reneecosmetics.in",
         "pintu.sharma@reneecosmetics.in",
         "vikram.dabhi@reneecosmetics.in",
-        "tanishq.gaggar@reneecosmetics.in",
+        # "tanishq.gaggar@reneecosmetics.in",
         "jitendra.r@reneecosmetics.in",
         "aritra.barmanray@reneecosmetics.in",
         "yogesh.parekh@reneecosmetics.in",
         "mudit.porwal@reneecosmetics.in",
-        "kishan.limbachiya@reneecosmetics.in",
-        "jayesh.makwana@reneecosmetics.in",
-        "rahul.gohel@reneecosmetics.in"
+        # "kishan.limbachiya@reneecosmetics.in",
+        # "jayesh.makwana@reneecosmetics.in",
+        "rahul.gohel@reneecosmetics.in",
+        "rahul.soni@reneecosmetics.in",
+        "ketan.jain@reneecosmetics.in"
     ]
     
     # Expiration Configuration (Set this date to when you want the app to expire)
@@ -559,6 +561,7 @@ body {{
                 df["Expiry Date"] = pd.to_datetime(df["Expiry Date"], errors="coerce").dt.strftime('%d-%m-%Y')
                 
                 FLIPKART_ALPHA_LOCS = [
+                    "bhi_pad_wh_nl_01nl",
                     "ban_ven_wh_nl_01nl",
                     "frk_bts",
                     "gur_san_wh_nl_01nl",
