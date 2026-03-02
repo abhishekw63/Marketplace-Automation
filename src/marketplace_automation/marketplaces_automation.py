@@ -1,10 +1,16 @@
 import pandas as pd
 from datetime import datetime
 import os
-import threading
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
-import customtkinter as ctk
+import sys
+
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QComboBox, QPushButton, QMessageBox, QFileDialog, QFrame,
+    QSizePolicy
+)
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QFont, QIcon, QCursor
+from qt_material import apply_stylesheet
 
 from config import Config
 from utils import format_indian
@@ -14,30 +20,55 @@ from marketplaces.blinkit import process_blinkit
 from marketplaces.flipkart import process_flipkart
 from marketplaces.swiggy import process_swiggy
 
-class POReportApp:
+class ReportWorker(QThread):
+    """Background worker thread to handle report processing without freezing UI."""
+    success = pyqtSignal(dict)
+    error = pyqtSignal(str)
+
+    def __init__(self, marketplace, file_path):
+        super().__init__()
+        self.marketplace = marketplace
+        self.file_path = file_path
+
+    def run(self):
+        try:
+            if self.marketplace == "Blinkit":
+                result = process_blinkit(self.file_path)
+            elif self.marketplace == "Flipkart":
+                result = process_flipkart(self.file_path)
+            elif self.marketplace == "Swiggy":
+                result = process_swiggy(self.file_path)
+            else:
+                self.error.emit("Unknown marketplace selected.")
+                return
+
+            self.success.emit(result)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            self.error.emit(str(e))
+
+
+class POReportApp(QMainWindow):
     """
-    A GUI application to generate Purchase Order (PO) reports for different marketplaces.
+    A PyQt6 GUI application to generate Purchase Order (PO) reports for different marketplaces.
     Supports: Blinkit, Flipkart, Swiggy, Zepto (coming soon)
     Includes email functionality to send summary reports.
     """
     
-    def __init__(self, root):
-        """Initialize the main window and configure the UI."""
-        self.root = root
-        self.root.title("PO Report Generator")
-        self.root.geometry("550x450")
-        self.root.resizable(False, False)
-        self.marketplace_var = ctk.StringVar(value="Blinkit")
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("PO Report Generator")
+        self.setFixedSize(600, 500)
         self.last_summary = {}
-        self.is_processing = False
-        
-        # Check expiration before building UI
+        self.worker = None
+
         if not self._check_expiration():
-            self.root.destroy()
-            return
-        
+            sys.exit(0)
+
         self._build_ui()
-    
+        self._apply_custom_styles()
+
     def _check_expiration(self):
         """Check if the application has expired."""
         try:
@@ -45,7 +76,8 @@ class POReportApp:
             current_date = datetime.now().date()
             
             if current_date > expiry_date:
-                messagebox.showerror(
+                QMessageBox.critical(
+                    self,
                     "Application Expired",
                     f"This application expired on {Config.EXPIRY_DATE}.\n\n"
                     f"Please contact the administrator for an updated version.\n\n"
@@ -53,10 +85,10 @@ class POReportApp:
                 )
                 return False
             
-            # Show warning if expiring within 7 days
             days_remaining = (expiry_date - current_date).days
             if days_remaining <= 7:
-                messagebox.showwarning(
+                QMessageBox.warning(
+                    self,
                     "Expiration Warning",
                     f"⚠️ This application will expire in {days_remaining} day(s).\n\n"
                     f"Expiry Date: {Config.EXPIRY_DATE}\n\n"
@@ -64,122 +96,184 @@ class POReportApp:
                 )
             
             return True
-            
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to check expiration: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Failed to check expiration: {str(e)}")
             return False
-    
+
     def _build_ui(self):
-        """Construct the Tkinter widgets for the application."""
+        """Construct the PyQt6 widgets for the application."""
+        central_widget = QWidget(self)
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
         # Header Frame
-        header_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        header_frame.pack(fill="x", side="top", pady=(20, 10))
+        header_frame = QFrame()
+        header_frame.setObjectName("headerFrame")
+        header_layout = QVBoxLayout(header_frame)
+        header_layout.setContentsMargins(20, 25, 20, 20)
+        header_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        ctk.CTkLabel(
-            header_frame,
-            text="📊 PO Report Generator",
-            font=ctk.CTkFont(family="Segoe UI", size=24, weight="bold"),
-            text_color=("#1A5276", "#5DADE2")
-        ).pack()
-        ctk.CTkLabel(
-            header_frame,
-            text="Automated Purchase Order Intelligence System",
-            font=ctk.CTkFont(family="Segoe UI", size=12, slant="italic"),
-            text_color=("#566573", "#ABB2B9")
-        ).pack()
+        title_label = QLabel("📊 PO Report Generator")
+        title_label.setObjectName("titleLabel")
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Main Content Frame (Card style)
-        main_frame = ctk.CTkFrame(
-            self.root,
-            corner_radius=15,
-            fg_color=("#FFFFFF", "#2C3E50"),
-            border_width=1,
-            border_color=("#D5D8DC", "#34495E")
-        )
-        main_frame.pack(fill="both", expand=True, padx=40, pady=(10, 20))
+        subtitle_label = QLabel("Automated Purchase Order Intelligence System")
+        subtitle_label.setObjectName("subtitleLabel")
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        header_layout.addWidget(title_label)
+        header_layout.addWidget(subtitle_label)
+        main_layout.addWidget(header_frame)
+
+        # Body/Content Frame (Card style)
+        content_wrapper = QWidget()
+        wrapper_layout = QVBoxLayout(content_wrapper)
+        wrapper_layout.setContentsMargins(40, 20, 40, 20)
+
+        card_frame = QFrame()
+        card_frame.setObjectName("cardFrame")
+        card_layout = QVBoxLayout(card_frame)
+        card_layout.setContentsMargins(30, 30, 30, 30)
+        card_layout.setSpacing(20)
 
         # Marketplace Selection
-        selection_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        selection_frame.pack(pady=(20, 10))
+        combo_layout = QVBoxLayout()
+        combo_layout.setSpacing(8)
 
-        ctk.CTkLabel(
-            selection_frame,
-            text="Select Marketplace",
-            font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold")
-        ).pack(pady=(0, 5))
+        select_lbl = QLabel("Select Marketplace:")
+        select_lbl.setObjectName("selectLabel")
 
-        self.marketplace_dropdown = ctk.CTkComboBox(
-            selection_frame,
-            variable=self.marketplace_var,
-            values=["Blinkit", "Flipkart", "Swiggy", "Zepto"],
-            state="readonly",
-            width=280,
-            height=35,
-            font=ctk.CTkFont(family="Segoe UI", size=13),
-            dropdown_font=ctk.CTkFont(family="Segoe UI", size=13),
-            dropdown_fg_color=("#FFFFFF", "#2C3E50"),
-            dropdown_hover_color=("#EAECEE", "#34495E"),
-            dropdown_text_color=("#2C3E50", "#EAECEE"),
-            corner_radius=8,
-            border_width=1,
-            button_color=("#3498DB", "#2980B9"),
-            button_hover_color=("#2980B9", "#1A5276")
-        )
-        self.marketplace_dropdown.pack()
+        self.marketplace_dropdown = QComboBox()
+        self.marketplace_dropdown.addItems(["Blinkit", "Flipkart", "Swiggy", "Zepto"])
+        self.marketplace_dropdown.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
-        # Action Button
-        self.generate_btn = ctk.CTkButton(
-            main_frame,
-            text="📁 Select File & Generate Report",
-            font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
-            width=280,
-            height=45,
-            corner_radius=8,
-            fg_color=("#2ECC71", "#27AE60"),
-            hover_color=("#27AE60", "#1E8449"),
-            command=self.generate_report
-        )
-        self.generate_btn.pack(pady=(20, 10))
+        combo_layout.addWidget(select_lbl)
+        combo_layout.addWidget(self.marketplace_dropdown)
 
-        # Status & Info
-        self.status_var = ctk.StringVar(value="")
-        self.status_label = ctk.CTkLabel(
-            main_frame,
-            textvariable=self.status_var,
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color=("#F39C12", "#F1C40F")
-        )
-        self.status_label.pack(pady=(0, 5))
+        card_layout.addLayout(combo_layout)
 
-        ctk.CTkLabel(
-            main_frame,
-            text="✨ Other marketplaces are coming soon!",
-            font=ctk.CTkFont(family="Segoe UI", size=11, slant="italic"),
-            text_color=("#7F8C8D", "#95A5A6")
-        ).pack(side="bottom", pady=(0, 15))
+        # Generate Button
+        self.generate_btn = QPushButton("📁 Select File & Generate Report")
+        self.generate_btn.setObjectName("generateBtn")
+        self.generate_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.generate_btn.setMinimumHeight(50)
+        self.generate_btn.clicked.connect(self.generate_report)
+        card_layout.addWidget(self.generate_btn)
 
-        # Footer Frame (Developer Info)
-        footer_frame = ctk.CTkFrame(self.root, fg_color=("gray90", "gray15"), corner_radius=0, height=50)
-        footer_frame.pack(fill="x", side="bottom")
+        # Status Label
+        self.status_label = QLabel("")
+        self.status_label.setObjectName("statusLabel")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(self.status_label)
+
+        # Info Label
+        coming_soon_lbl = QLabel("✨ Other marketplaces are coming soon!")
+        coming_soon_lbl.setObjectName("comingSoonLabel")
+        coming_soon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(coming_soon_lbl)
+
+        wrapper_layout.addWidget(card_frame)
+        main_layout.addWidget(content_wrapper)
         
-        dev_label = ctk.CTkLabel(
-            footer_frame,
-            text="👨‍💻 Developer: Abhishek Wagh",
-            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
-            text_color=("#2C3E50", "#EAECEE")
-        )
-        dev_label.pack(pady=(8, 0))
+        main_layout.addStretch()
+
+        # Footer Frame
+        footer_frame = QFrame()
+        footer_frame.setObjectName("footerFrame")
+        footer_layout = QVBoxLayout(footer_frame)
+        footer_layout.setContentsMargins(10, 15, 10, 15)
+        footer_layout.setSpacing(5)
+
+        dev_label = QLabel("👨‍💻 Developer: Abhishek Wagh")
+        dev_label.setObjectName("devLabel")
+        dev_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        info_label = QLabel("🆔 Owner ID: RENEE-723  •  📧 abhishek.wagh@reneecosmetics.in")
+        info_label.setObjectName("infoLabel")
+        info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        footer_layout.addWidget(dev_label)
+        footer_layout.addWidget(info_label)
+        main_layout.addWidget(footer_frame)
         
-        info_text = "🆔 Owner ID: RENEE-723  •  📧 abhishek.wagh@reneecosmetics.in"
-        info_label = ctk.CTkLabel(
-            footer_frame,
-            text=info_text,
-            font=ctk.CTkFont(family="Segoe UI", size=10),
-            text_color=("#566573", "#ABB2B9")
-        )
-        info_label.pack(pady=(0, 8))
-    
+    def _apply_custom_styles(self):
+        """Apply CSS styling overrides on top of qt-material for a beautiful finish."""
+        # Note: qt-material takes care of dark/light mode and general widget styling.
+        # Here we only override specific parts like our custom card/header looks.
+        custom_css = """
+        #titleLabel {
+            font-size: 26px;
+            font-weight: bold;
+            color: #2196F3;
+        }
+        #subtitleLabel {
+            font-size: 13px;
+            font-style: italic;
+            color: #90A4AE;
+        }
+        #cardFrame {
+            background-color: #1E1E1E;
+            border-radius: 12px;
+            border: 1px solid #37474F;
+        }
+        #selectLabel {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        QComboBox {
+            padding: 8px 12px;
+            font-size: 14px;
+            border-radius: 6px;
+            border: 1px solid #37474F;
+        }
+        QComboBox::drop-down {
+            border: none;
+        }
+        #generateBtn {
+            font-size: 15px;
+            font-weight: bold;
+            background-color: #4CAF50;
+            color: white;
+            border-radius: 8px;
+            border: none;
+        }
+        #generateBtn:hover {
+            background-color: #43A047;
+        }
+        #generateBtn:disabled {
+            background-color: #2E7D32;
+            color: #9E9E9E;
+        }
+        #statusLabel {
+            font-size: 13px;
+            font-weight: bold;
+            color: #FFB300;
+        }
+        #comingSoonLabel {
+            font-size: 12px;
+            font-style: italic;
+            color: #78909C;
+        }
+        #footerFrame {
+            background-color: #121212;
+            border-top: 1px solid #263238;
+        }
+        #devLabel {
+            font-size: 13px;
+            font-weight: bold;
+            color: #ECEFF1;
+        }
+        #infoLabel {
+            font-size: 11px;
+            color: #B0BEC5;
+        }
+        """
+        # Append to existing stylesheet if qt-material is applied
+        current_ss = self.styleSheet()
+        self.setStyleSheet(current_ss + custom_css)
+
     def calculate_summary_data(self, df, marketplace):
         """Calculate summary statistics from the DataFrame."""
         if marketplace == "Blinkit":
@@ -194,9 +288,8 @@ class POReportApp:
             total_pos = df['PO'].nunique()
             total_units = df['PO Qty'].sum()
 
-            # Create a copy to avoid modifying original dataframe and raising SettingWithCopyWarning
             df_calc = df.copy()
-            if df_calc['PO Value'].dtype == 'O': # Object/String type
+            if df_calc['PO Value'].dtype == 'O':
                  df_calc['PO Value_num'] = df_calc['PO Value'].replace('[₹,]', '', regex=True).astype(float)
             else:
                  df_calc['PO Value_num'] = df_calc['PO Value']
@@ -224,152 +317,114 @@ class POReportApp:
         }
 
     def generate_report(self):
-        """Main function to trigger report generation in a background thread."""
-        if self.is_processing:
-            return
-
-        marketplace = self.marketplace_var.get()
+        """Main function to trigger report generation via QThread."""
+        marketplace = self.marketplace_dropdown.currentText()
         if marketplace == "Zepto":
-            messagebox.showinfo("Info", "Zepto integration is coming soon!")
+            QMessageBox.information(self, "Info", "Zepto integration is coming soon!")
             return
 
-        file_path = filedialog.askopenfilename(
-            filetypes=[("CSV files", "*.csv"), ("Excel files", "*.xlsx *.xls")]
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Data File",
+            "",
+            "Data Files (*.csv *.xlsx *.xls);;CSV files (*.csv);;Excel files (*.xlsx *.xls)"
         )
+
         if not file_path:
             return
 
-        self.is_processing = True
-        self.generate_btn.configure(state="disabled")
-        self.status_var.set(f"Processing {marketplace} data...")
-        self.root.update_idletasks()
+        self.generate_btn.setEnabled(False)
+        self.status_label.setText(f"Processing {marketplace} data...")
 
-        # Run processing in a background thread
-        thread = threading.Thread(target=self._process_report_thread, args=(marketplace, file_path))
-        thread.daemon = True
-        thread.start()
-
-    def _process_report_thread(self, marketplace, file_path):
-        """Thread worker for processing the report."""
-        try:
-            if marketplace == "Blinkit":
-                result = process_blinkit(file_path)
-            elif marketplace == "Flipkart":
-                result = process_flipkart(file_path)
-            elif marketplace == "Swiggy":
-                result = process_swiggy(file_path)
-            else:
-                self.root.after(0, self._handle_process_error, "Unknown marketplace selected.")
-                return
-                
-            # Calculate summary data for UI and Email
-            self.last_summary = self.calculate_summary_data(result['tracker_df'], marketplace)
-            
-            # Update UI on success
-            self.root.after(0, self._handle_process_success, result)
-
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            self.root.after(0, self._handle_process_error, str(e))
+        # Setup and start background thread
+        self.worker = ReportWorker(marketplace, file_path)
+        self.worker.success.connect(self._handle_process_success)
+        self.worker.error.connect(self._handle_process_error)
+        self.worker.start()
 
     def _handle_process_error(self, error_msg):
-        """Handle errors from the processing thread on the main UI thread."""
-        self.is_processing = False
-        self.generate_btn.configure(state="normal")
-        self.status_var.set("")
-        messagebox.showerror("Error", f"Something went wrong:\n{error_msg}")
+        """Handle errors from the processing thread."""
+        self.generate_btn.setEnabled(True)
+        self.status_label.setText("")
+        QMessageBox.critical(self, "Error", f"Something went wrong:\n{error_msg}")
 
     def _handle_process_success(self, result):
         """Handle successful processing and prompt user interactions."""
-        try:
-            self.is_processing = False
-            self.generate_btn.configure(state="normal")
-            self.status_var.set("")
+        self.generate_btn.setEnabled(True)
+        self.status_label.setText("")
 
-            marketplace = result['marketplace']
-            output_file = result['output_file']
-            has_sku_data = result['has_sku_data']
-            sku_count = result['sku_count']
+        marketplace = result['marketplace']
+        output_file = result['output_file']
+        has_sku_data = result['has_sku_data']
+        sku_count = result['sku_count']
 
-            # Build success message
-            success_msg = f"Report created successfully at:\n{output_file}"
-            if marketplace == "Swiggy":
-                 output_folder = result.get('output_folder')
-                 success_msg = f"Main report created: {output_file.name}\n\nIndividual PO workbooks created in:\n{output_folder.name}"
+        self.last_summary = self.calculate_summary_data(result['tracker_df'], marketplace)
 
-            # Show summary popup
-            sku_status = f"SKU Data: ✅ Available ({sku_count} SKUs)" if has_sku_data else f"SKU Data: ❌ Not Available ({marketplace} format)"
+        success_msg = f"Report created successfully at:\n{output_file}"
+        if marketplace == "Swiggy":
+             output_folder = result.get('output_folder')
+             success_msg = f"Main report created: {output_file.name}\n\nIndividual PO workbooks created in:\n{output_folder.name}"
 
-            summary_text = (
-                f"📊 SUMMARY REPORT 📊\n\n"
-                f"Total POs: {self.last_summary['total_pos']}\n"
-                f"Order Date Range: {self.last_summary['min_date']} to {self.last_summary['max_date']}\n"
-                f"Total Units Ordered: {format_indian(self.last_summary['total_units'])}\n"
-                f"Total Order Value: ₹ {format_indian(self.last_summary['total_value'])}\n"
-                f"{sku_status}"
+        sku_status = f"SKU Data: ✅ Available ({sku_count} SKUs)" if has_sku_data else f"SKU Data: ❌ Not Available ({marketplace} format)"
+        summary_text = (
+            f"📊 SUMMARY REPORT 📊\n\n"
+            f"Total POs: {self.last_summary['total_pos']}\n"
+            f"Order Date Range: {self.last_summary['min_date']} to {self.last_summary['max_date']}\n"
+            f"Total Units Ordered: {format_indian(self.last_summary['total_units'])}\n"
+            f"Total Order Value: ₹ {format_indian(self.last_summary['total_value'])}\n"
+            f"{sku_status}"
+        )
+
+        QMessageBox.information(self, "Success", success_msg)
+        QMessageBox.information(self, "PO Summary", summary_text)
+
+        # Send email prompt
+        reply = QMessageBox.question(
+            self, 'Send Email', 'Do you want to send this summary via email?',
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            self.status_label.setText("Sending email...")
+            QApplication.processEvents() # Force UI update before blocking email send (or ideally move this to a thread too)
+
+            success, err_msg = EmailService.send_email_summary(
+                marketplace,
+                self.last_summary,
+                result['tracker_df'],
+                result['sku_df']
             )
+            self.status_label.setText("")
 
-            messagebox.showinfo("Success", success_msg)
-            messagebox.showinfo("PO Summary", summary_text)
-
-            # Ask if user wants to send email
-            if messagebox.askyesno("Send Email", "Do you want to send this summary via email?"):
-                self.status_var.set("Sending email...")
-                self.root.update_idletasks()
-                
-                # Send email
-                success, err_msg = EmailService.send_email_summary(
-                    marketplace,
-                    self.last_summary,
-                    result['tracker_df'],
-                    result['sku_df']
-                )
-                self.status_var.set("")
-                
-                # Handle result
-                if success:
-                    recipient_info = f"To: {Config.DEFAULT_RECIPIENT}"
-                    if Config.CC_RECIPIENTS:
-                        cc_list = "\n".join([f"  • {email}" for email in Config.CC_RECIPIENTS])
-                        recipient_info += f"\n\nCC:\n{cc_list}"
-                    messagebox.showinfo("Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
-                else:
-                    # ← Correct indentation - only shows on actual email failure
-                    messagebox.showerror("Email Error", f"Failed to send email:\n{err_msg}")
+            if success:
+                recipient_info = f"To: {Config.DEFAULT_RECIPIENT}"
+                if Config.CC_RECIPIENTS:
+                    cc_list = "\n".join([f"  • {email}" for email in Config.CC_RECIPIENTS])
+                    recipient_info += f"\n\nCC:\n{cc_list}"
+                QMessageBox.information(self, "Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
             else:
-                # User clicked "No" - silently proceed (or show info if you want)
-                pass
+                QMessageBox.critical(self, "Email Error", f"Failed to send email:\n{err_msg}")
 
-            # Ask to open files
-            if marketplace == "Swiggy":
-                if messagebox.askyesno("Open File", "Do you want to open the main Excel report?"):
-                    os.startfile(output_file)
-                if messagebox.askyesno("Open Folder", "Do you want to open the PO workbooks folder?"):
-                    os.startfile(result['output_folder'])
-            else:
-                if messagebox.askyesno("Open File", "Do you want to open the generated Excel file?"):
-                    os.startfile(output_file)
-                    self.root.destroy()
-
-            if marketplace != "Swiggy":
-                # original logic destroyed root for blinkit/flipkart if they opened file
-                pass
-        
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            self.is_processing = False
-            self.generate_btn.configure(state="normal")
-            self.status_var.set("")
-            messagebox.showerror("Error", f"An error occurred:\n{str(e)}")
+        # Ask to open files
+        if marketplace == "Swiggy":
+            if QMessageBox.question(self, "Open File", "Do you want to open the main Excel report?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+                os.startfile(output_file)
+            if QMessageBox.question(self, "Open Folder", "Do you want to open the PO workbooks folder?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+                os.startfile(result['output_folder'])
+        else:
+            if QMessageBox.question(self, "Open File", "Do you want to open the generated Excel file?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+                os.startfile(output_file)
+                self.close()
 
 def main():
-    ctk.set_appearance_mode("System")
-    ctk.set_default_color_theme("blue")
-    root = ctk.CTk()
-    app = POReportApp(root)
-    root.mainloop()
+    app = QApplication(sys.argv)
+
+    # Apply a modern dark theme from qt-material
+    apply_stylesheet(app, theme='dark_blue.xml')
+
+    window = POReportApp()
+    window.show()
+    sys.exit(app.exec())
 
 if __name__ == "__main__":
     main()

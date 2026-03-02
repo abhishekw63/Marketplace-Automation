@@ -3,4 +3,5 @@ numpy
 openpyxl
 tqdm
 python-dotenv
-customtkinter
+PyQt6
+qt-material
