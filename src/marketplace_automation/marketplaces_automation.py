@@ -4,6 +4,7 @@ import os
 import threading
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+import customtkinter as ctk
 
 from config import Config
 from utils import format_indian
@@ -26,8 +27,7 @@ class POReportApp:
         self.root.title("PO Report Generator")
         self.root.geometry("550x450")
         self.root.resizable(False, False)
-        self.root.configure(bg="#f4f6f9")
-        self.marketplace_var = tk.StringVar(value="Blinkit")
+        self.marketplace_var = ctk.StringVar(value="Blinkit")
         self.last_summary = {}
         self.is_processing = False
         
@@ -71,93 +71,76 @@ class POReportApp:
     
     def _build_ui(self):
         """Construct the Tkinter widgets for the application."""
-        style = ttk.Style()
-        style.theme_use('clam')
-
-        # Style configurations
-        style.configure("TLabel", font=("Segoe UI", 10), background="#f4f6f9")
-        style.configure("Header.TLabel", font=("Segoe UI", 18, "bold"), foreground="#4472C4", background="white")
-        style.configure("SubHeader.TLabel", font=("Segoe UI", 10, "italic"), foreground="gray", background="white")
 
         # Header Frame
-        header_frame = tk.Frame(self.root, bg="white", pady=15, relief="solid", bd=0)
-        header_frame.pack(fill="x", side="top")
+        header_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        header_frame.pack(fill="x", side="top", pady=15)
 
-        ttk.Label(header_frame, text="📊 PO Report Generator", style="Header.TLabel").pack()
-        ttk.Label(header_frame, text="Automated Purchase Order Intelligence System", style="SubHeader.TLabel").pack()
+        ctk.CTkLabel(header_frame, text="📊 PO Report Generator", font=("Segoe UI", 18, "bold"), text_color="#4472C4").pack()
+        ctk.CTkLabel(header_frame, text="Automated Purchase Order Intelligence System", font=("Segoe UI", 10, "italic"), text_color="gray").pack()
 
         # Main Content Frame
-        main_frame = tk.Frame(self.root, bg="#f4f6f9", pady=20)
-        main_frame.pack(fill="both", expand=True)
+        main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, pady=20)
 
-        ttk.Label(main_frame, text="Select Marketplace:").pack(pady=(10, 5))
+        ctk.CTkLabel(main_frame, text="Select Marketplace:", font=("Segoe UI", 10)).pack(pady=(10, 5))
 
-        style.configure("TCombobox", padding=5, font=("Segoe UI", 11))
-        self.marketplace_dropdown = ttk.Combobox(
+        self.marketplace_dropdown = ctk.CTkComboBox(
             main_frame,
-            textvariable=self.marketplace_var,
+            variable=self.marketplace_var,
             values=["Blinkit", "Flipkart", "Swiggy", "Zepto"],
             state="readonly",
-            width=30,
+            width=250,
             font=("Segoe UI", 11)
         )
         self.marketplace_dropdown.pack(pady=5)
 
-        style.configure(
-            "Action.TButton",
-            font=("Segoe UI", 11, "bold"),
-            padding=8,
-            background="#4472C4",
-            foreground="white"
-        )
-        style.map("Action.TButton", background=[("active", "#335a9f")])
-
-        self.generate_btn = ttk.Button(
+        self.generate_btn = ctk.CTkButton(
             main_frame,
             text="Select CSV/Xlsx and Generate Report",
-            style="Action.TButton",
+            font=("Segoe UI", 11, "bold"),
+            fg_color="#4472C4",
+            hover_color="#335a9f",
             command=self.generate_report
         )
         self.generate_btn.pack(pady=(25, 10))
 
-        self.status_var = tk.StringVar(value="")
-        self.status_label = ttk.Label(
+        self.status_var = ctk.StringVar(value="")
+        self.status_label = ctk.CTkLabel(
             main_frame,
             textvariable=self.status_var,
             font=("Segoe UI", 10, "bold"),
-            foreground="#28a745"
+            text_color="#28a745"
         )
         self.status_label.pack(pady=(5, 5))
 
-        ttk.Label(
+        ctk.CTkLabel(
             main_frame,
             text="Other marketplaces are coming soon!",
             font=("Segoe UI", 9, "italic"),
-            foreground="#28a745"
+            text_color="#28a745"
         ).pack(pady=(5,0))
 
         # Footer Frame (Developer Info)
-        footer_frame = tk.Frame(self.root, bg="#e9ecef", pady=10, relief="groove", bd=2)
-        footer_frame.pack(fill="x", side="bottom")
+        footer_frame = ctk.CTkFrame(self.root, fg_color="#e9ecef", corner_radius=0)
+        footer_frame.pack(fill="x", side="bottom", pady=0)
         
-        dev_label = tk.Label(
+        dev_label = ctk.CTkLabel(
             footer_frame,
             text="👨‍💻 Developer: Abhishek Wagh",
             font=("Segoe UI", 10, "bold"),
-            bg="#e9ecef",
-            fg="#333"
+            text_color="#333"
         )
-        dev_label.pack()
+        dev_label.pack(pady=(10, 0))
         
         info_text = "🆔 Owner ID: RENEE-723  •  📧 abhishek.wagh@reneecosmetics.in"
-        info_label = tk.Label(
+        info_label = ctk.CTkLabel(
             footer_frame,
             text=info_text,
             font=("Segoe UI", 9),
-            bg="#e9ecef",
-            fg="#555"
+            text_color="#555"
         )
-        info_label.pack(pady=(2, 0))
+        info_label.pack(pady=(2, 10))
     
     def calculate_summary_data(self, df, marketplace):
         """Calculate summary statistics from the DataFrame."""
@@ -219,7 +202,7 @@ class POReportApp:
             return
 
         self.is_processing = True
-        self.generate_btn.config(state=tk.DISABLED)
+        self.generate_btn.configure(state="disabled")
         self.status_var.set(f"Processing {marketplace} data...")
         self.root.update_idletasks()
 
@@ -255,7 +238,7 @@ class POReportApp:
     def _handle_process_error(self, error_msg):
         """Handle errors from the processing thread on the main UI thread."""
         self.is_processing = False
-        self.generate_btn.config(state=tk.NORMAL)
+        self.generate_btn.configure(state="normal")
         self.status_var.set("")
         messagebox.showerror("Error", f"Something went wrong:\n{error_msg}")
 
@@ -263,7 +246,7 @@ class POReportApp:
         """Handle successful processing and prompt user interactions."""
         try:
             self.is_processing = False
-            self.generate_btn.config(state=tk.NORMAL)
+            self.generate_btn.configure(state="normal")
             self.status_var.set("")
 
             marketplace = result['marketplace']
@@ -339,12 +322,14 @@ class POReportApp:
             import traceback
             traceback.print_exc()
             self.is_processing = False
-            self.generate_btn.config(state=tk.NORMAL)
+            self.generate_btn.configure(state="normal")
             self.status_var.set("")
             messagebox.showerror("Error", f"An error occurred:\n{str(e)}")
 
 def main():
-    root = tk.Tk()
+    ctk.set_appearance_mode("System")
+    ctk.set_default_color_theme("blue")
+    root = ctk.CTk()
     app = POReportApp(root)
     root.mainloop()
 
