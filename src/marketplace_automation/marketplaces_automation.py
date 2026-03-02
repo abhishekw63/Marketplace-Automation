@@ -74,73 +74,108 @@ class POReportApp:
 
         # Header Frame
         header_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        header_frame.pack(fill="x", side="top", pady=15)
+        header_frame.pack(fill="x", side="top", pady=(20, 10))
 
-        ctk.CTkLabel(header_frame, text="📊 PO Report Generator", font=("Segoe UI", 18, "bold"), text_color="#4472C4").pack()
-        ctk.CTkLabel(header_frame, text="Automated Purchase Order Intelligence System", font=("Segoe UI", 10, "italic"), text_color="gray").pack()
+        ctk.CTkLabel(
+            header_frame,
+            text="📊 PO Report Generator",
+            font=ctk.CTkFont(family="Segoe UI", size=24, weight="bold"),
+            text_color=("#1A5276", "#5DADE2")
+        ).pack()
+        ctk.CTkLabel(
+            header_frame,
+            text="Automated Purchase Order Intelligence System",
+            font=ctk.CTkFont(family="Segoe UI", size=12, slant="italic"),
+            text_color=("#566573", "#ABB2B9")
+        ).pack()
 
-        # Main Content Frame
-        main_frame = ctk.CTkFrame(self.root, fg_color="transparent")
-        main_frame.pack(fill="both", expand=True, pady=20)
+        # Main Content Frame (Card style)
+        main_frame = ctk.CTkFrame(
+            self.root,
+            corner_radius=15,
+            fg_color=("#FFFFFF", "#2C3E50"),
+            border_width=1,
+            border_color=("#D5D8DC", "#34495E")
+        )
+        main_frame.pack(fill="both", expand=True, padx=40, pady=(10, 20))
 
-        ctk.CTkLabel(main_frame, text="Select Marketplace:", font=("Segoe UI", 10)).pack(pady=(10, 5))
+        # Marketplace Selection
+        selection_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        selection_frame.pack(pady=(20, 10))
+
+        ctk.CTkLabel(
+            selection_frame,
+            text="Select Marketplace",
+            font=ctk.CTkFont(family="Segoe UI", size=13, weight="bold")
+        ).pack(pady=(0, 5))
 
         self.marketplace_dropdown = ctk.CTkComboBox(
-            main_frame,
+            selection_frame,
             variable=self.marketplace_var,
             values=["Blinkit", "Flipkart", "Swiggy", "Zepto"],
             state="readonly",
-            width=250,
-            font=("Segoe UI", 11)
+            width=280,
+            height=35,
+            font=ctk.CTkFont(family="Segoe UI", size=13),
+            dropdown_font=ctk.CTkFont(family="Segoe UI", size=12),
+            corner_radius=8,
+            border_width=1,
+            button_color=("#3498DB", "#2980B9"),
+            button_hover_color=("#2980B9", "#1A5276")
         )
-        self.marketplace_dropdown.pack(pady=5)
+        self.marketplace_dropdown.pack()
 
+        # Action Button
         self.generate_btn = ctk.CTkButton(
             main_frame,
-            text="Select CSV/Xlsx and Generate Report",
-            font=("Segoe UI", 11, "bold"),
-            fg_color="#4472C4",
-            hover_color="#335a9f",
+            text="📁 Select File & Generate Report",
+            font=ctk.CTkFont(family="Segoe UI", size=14, weight="bold"),
+            width=280,
+            height=45,
+            corner_radius=8,
+            fg_color=("#2ECC71", "#27AE60"),
+            hover_color=("#27AE60", "#1E8449"),
             command=self.generate_report
         )
-        self.generate_btn.pack(pady=(25, 10))
+        self.generate_btn.pack(pady=(20, 10))
 
+        # Status & Info
         self.status_var = ctk.StringVar(value="")
         self.status_label = ctk.CTkLabel(
             main_frame,
             textvariable=self.status_var,
-            font=("Segoe UI", 10, "bold"),
-            text_color="#28a745"
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            text_color=("#F39C12", "#F1C40F")
         )
-        self.status_label.pack(pady=(5, 5))
+        self.status_label.pack(pady=(0, 5))
 
         ctk.CTkLabel(
             main_frame,
-            text="Other marketplaces are coming soon!",
-            font=("Segoe UI", 9, "italic"),
-            text_color="#28a745"
-        ).pack(pady=(5,0))
+            text="✨ Other marketplaces are coming soon!",
+            font=ctk.CTkFont(family="Segoe UI", size=11, slant="italic"),
+            text_color=("#7F8C8D", "#95A5A6")
+        ).pack(side="bottom", pady=(0, 15))
 
         # Footer Frame (Developer Info)
-        footer_frame = ctk.CTkFrame(self.root, fg_color="#e9ecef", corner_radius=0)
-        footer_frame.pack(fill="x", side="bottom", pady=0)
+        footer_frame = ctk.CTkFrame(self.root, fg_color=("gray90", "gray15"), corner_radius=0, height=50)
+        footer_frame.pack(fill="x", side="bottom")
         
         dev_label = ctk.CTkLabel(
             footer_frame,
             text="👨‍💻 Developer: Abhishek Wagh",
-            font=("Segoe UI", 10, "bold"),
-            text_color="#333"
+            font=ctk.CTkFont(family="Segoe UI", size=11, weight="bold"),
+            text_color=("#2C3E50", "#EAECEE")
         )
-        dev_label.pack(pady=(10, 0))
+        dev_label.pack(pady=(8, 0))
         
         info_text = "🆔 Owner ID: RENEE-723  •  📧 abhishek.wagh@reneecosmetics.in"
         info_label = ctk.CTkLabel(
             footer_frame,
             text=info_text,
-            font=("Segoe UI", 9),
-            text_color="#555"
+            font=ctk.CTkFont(family="Segoe UI", size=10),
+            text_color=("#566573", "#ABB2B9")
         )
-        info_label.pack(pady=(2, 10))
+        info_label.pack(pady=(0, 8))
     
     def calculate_summary_data(self, df, marketplace):
         """Calculate summary statistics from the DataFrame."""
