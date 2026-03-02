@@ -8,8 +8,8 @@ from PyQt6.QtWidgets import (
     QLabel, QComboBox, QPushButton, QFileDialog, QFrame,
     QSizePolicy, QGraphicsDropShadowEffect
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon, QCursor, QColor
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint
+from PyQt6.QtGui import QFont, QIcon, QCursor, QColor, QPixmap
 
 from config import Config
 from utils import format_indian
@@ -49,6 +49,44 @@ class ReportWorker(QThread):
             self.error.emit(str(e))
 
 
+class DraggableTitleBar(QFrame):
+    """Custom frameless title bar for smooth iOS-like dragging and close button."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.setObjectName("titleBar")
+        self.setFixedHeight(40)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(15, 0, 15, 0)
+        layout.setSpacing(10)
+
+        # Spacer
+        layout.addStretch()
+
+        # Close Button
+        self.close_btn = QPushButton("✕")
+        self.close_btn.setObjectName("closeBtn")
+        self.close_btn.setFixedSize(24, 24)
+        self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.close_btn.clicked.connect(self.parent.close)
+
+        layout.addWidget(self.close_btn)
+
+        self.start_pos = None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.start_pos = event.globalPosition().toPoint() - self.parent.pos()
+
+    def mouseMoveEvent(self, event):
+        if self.start_pos is not None and event.buttons() == Qt.MouseButton.LeftButton:
+            self.parent.move(event.globalPosition().toPoint() - self.start_pos)
+
+    def mouseReleaseEvent(self, event):
+        self.start_pos = None
+
+
 class POReportApp(QMainWindow):
     """
     A PyQt6 GUI application to generate Purchase Order (PO) reports for different marketplaces.
@@ -59,15 +97,15 @@ class POReportApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("PO Report Generator")
-        self.setFixedSize(600, 500)
+        self.setFixedSize(620, 580)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
         self.last_summary = {}
         self.worker = None
 
         if not self._check_expiration():
             sys.exit(0)
-
-        # Overall background (iOS-like subtle gray background for main app area)
-        self.setStyleSheet("QMainWindow { background-color: #F9FAFB; }")
 
         self._build_ui()
         self._apply_custom_styles()
@@ -105,58 +143,92 @@ class POReportApp(QMainWindow):
 
     def _build_ui(self):
         """Construct the PyQt6 widgets for the application."""
-        central_widget = QWidget(self)
-        self.setCentralWidget(central_widget)
-        main_layout = QVBoxLayout(central_widget)
+        # Main rounded window background
+        self.main_bg = QFrame(self)
+        self.main_bg.setObjectName("mainBg")
+        self.setCentralWidget(self.main_bg)
+
+        # Add a soft drop shadow to the entire window for floating effect
+        window_shadow = QGraphicsDropShadowEffect(self)
+        window_shadow.setBlurRadius(30)
+        window_shadow.setColor(QColor(0, 0, 0, 40))
+        window_shadow.setOffset(0, 5)
+        self.main_bg.setGraphicsEffect(window_shadow)
+
+        main_layout = QVBoxLayout(self.main_bg)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        # Header Frame
+        # Custom Title Bar
+        self.title_bar = DraggableTitleBar(self)
+        main_layout.addWidget(self.title_bar)
+
+        # Header Frame with Logo
         header_frame = QFrame()
         header_frame.setObjectName("headerFrame")
         header_layout = QVBoxLayout(header_frame)
-        header_layout.setContentsMargins(20, 25, 20, 20)
+        header_layout.setContentsMargins(20, 5, 20, 20)
         header_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        title_label = QLabel("📊 PO Report Generator")
+        logo_layout = QHBoxLayout()
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.setSpacing(15)
+
+        logo_lbl = QLabel()
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        logo_path = os.path.join(base_path, "renee_logo.png")
+        if os.path.exists(logo_path):
+            pixmap = QPixmap(logo_path)
+            # Resize smoothly to fit header height
+            pixmap = pixmap.scaledToHeight(40, Qt.TransformationMode.SmoothTransformation)
+            logo_lbl.setPixmap(pixmap)
+
+        title_label = QLabel("PO Report Generator")
         title_label.setObjectName("titleLabel")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        logo_layout.addWidget(logo_lbl)
+        logo_layout.addWidget(title_label)
 
         subtitle_label = QLabel("Automated Purchase Order Intelligence System")
         subtitle_label.setObjectName("subtitleLabel")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        header_layout.addWidget(title_label)
+        header_layout.addLayout(logo_layout)
         header_layout.addWidget(subtitle_label)
         main_layout.addWidget(header_frame)
 
         # Body/Content Frame (Card style)
         content_wrapper = QWidget()
         wrapper_layout = QVBoxLayout(content_wrapper)
-        wrapper_layout.setContentsMargins(40, 10, 40, 20)
+        wrapper_layout.setContentsMargins(50, 10, 50, 20)
 
         card_frame = QFrame()
         card_frame.setObjectName("cardFrame")
         card_layout = QVBoxLayout(card_frame)
-        card_layout.setContentsMargins(35, 35, 35, 35)
+        card_layout.setContentsMargins(35, 40, 35, 40)
         card_layout.setSpacing(24)
 
         shadow = QGraphicsDropShadowEffect(self)
-        shadow.setBlurRadius(40)
-        shadow.setColor(QColor(0, 0, 0, 20)) # Light smooth shadow
-        shadow.setOffset(0, 10)
+        shadow.setBlurRadius(25)
+        shadow.setColor(QColor(0, 0, 0, 15)) # Very subtle iOS shadow
+        shadow.setOffset(0, 6)
         card_frame.setGraphicsEffect(shadow)
 
         # Marketplace Selection
         combo_layout = QVBoxLayout()
-        combo_layout.setSpacing(8)
+        combo_layout.setSpacing(10)
 
         select_lbl = QLabel("Select Marketplace:")
         select_lbl.setObjectName("selectLabel")
 
         self.marketplace_dropdown = QComboBox()
+        self.marketplace_dropdown.setObjectName("marketplaceDropdown")
         self.marketplace_dropdown.addItems(["Blinkit", "Flipkart", "Swiggy", "Zepto"])
         self.marketplace_dropdown.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+
+        # Increase minimum height to prevent text cut-off
+        self.marketplace_dropdown.setMinimumHeight(45)
 
         combo_layout.addWidget(select_lbl)
         combo_layout.addWidget(self.marketplace_dropdown)
@@ -164,7 +236,7 @@ class POReportApp(QMainWindow):
         card_layout.addLayout(combo_layout)
 
         # Generate Button
-        self.generate_btn = QPushButton("📁 Select File & Generate Report")
+        self.generate_btn = QPushButton("Select File & Generate Report")
         self.generate_btn.setObjectName("generateBtn")
         self.generate_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.generate_btn.setMinimumHeight(50)
@@ -192,7 +264,7 @@ class POReportApp(QMainWindow):
         footer_frame = QFrame()
         footer_frame.setObjectName("footerFrame")
         footer_layout = QVBoxLayout(footer_frame)
-        footer_layout.setContentsMargins(10, 15, 10, 15)
+        footer_layout.setContentsMargins(10, 15, 10, 20)
         footer_layout.setSpacing(5)
 
         dev_label = QLabel("👨‍💻 Developer: Abhishek Wagh")
@@ -213,28 +285,55 @@ class POReportApp(QMainWindow):
         * {
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
         }
+        /* Top Level App Background */
+        #mainBg {
+            background-color: #F8F9FA;
+            border-radius: 20px;
+            border: 1px solid #E5E7EB;
+        }
+        #titleBar {
+            background-color: transparent;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+        }
+        #closeBtn {
+            font-size: 12px;
+            font-weight: bold;
+            color: #9CA3AF;
+            background-color: #F3F4F6;
+            border-radius: 12px;
+            border: none;
+        }
+        #closeBtn:hover {
+            color: white;
+            background-color: #EF4444; /* iOS red */
+        }
         #titleLabel {
             font-size: 28px;
             font-weight: 800;
-            color: #111827; /* Dark slate */
+            color: #111827;
         }
         #subtitleLabel {
             font-size: 14px;
-            color: #6B7280; /* Neutral gray */
-            margin-top: 5px;
+            color: #6B7280;
+            margin-top: 2px;
         }
         #cardFrame {
             background-color: #FFFFFF;
-            border-radius: 24px;
-            /* Border removed to let the shadow do the work, like an iOS card */
+            border-radius: 20px;
         }
         #selectLabel {
             font-size: 15px;
-            font-weight: 600;
+            font-weight: 700;
             color: #374151;
+            margin-bottom: 2px;
         }
-        QComboBox {
-            padding: 12px 16px;
+        /* Fix the combobox text cutoff by setting explicit line-height/padding */
+        #marketplaceDropdown {
+            padding-left: 16px;
+            padding-right: 16px;
+            padding-top: 10px;
+            padding-bottom: 10px;
             font-size: 15px;
             font-weight: 500;
             color: #1F2937;
@@ -242,26 +341,26 @@ class POReportApp(QMainWindow):
             border-radius: 12px;
             border: 1px solid #E5E7EB;
         }
-        QComboBox:hover {
-            background-color: #E5E7EB;
+        #marketplaceDropdown:hover {
+            background-color: #EAECEF;
             border: 1px solid #D1D5DB;
         }
-        QComboBox::drop-down {
+        #marketplaceDropdown::drop-down {
             border: none;
-            width: 30px;
+            width: 35px;
         }
-        QComboBox::down-arrow {
-            /* Fallback basic arrow since we don't have custom svgs */
+        #marketplaceDropdown::down-arrow {
             image: none;
         }
-        QComboBox QAbstractItemView {
+        #marketplaceDropdown QAbstractItemView {
             background-color: #FFFFFF;
-            border-radius: 8px;
+            border-radius: 12px;
             border: 1px solid #E5E7EB;
             selection-background-color: #F3F4F6;
             selection-color: #111827;
-            padding: 4px;
+            padding: 5px;
             outline: none;
+            font-size: 15px;
         }
         #generateBtn {
             font-size: 16px;
@@ -270,7 +369,7 @@ class POReportApp(QMainWindow):
             color: white;
             border-radius: 14px;
             border: none;
-            padding: 14px;
+            padding: 12px;
         }
         #generateBtn:hover {
             background-color: #0066D6;
@@ -294,11 +393,13 @@ class POReportApp(QMainWindow):
         }
         #footerFrame {
             background-color: #FFFFFF;
-            border-top: 1px solid #E5E7EB;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            border-top: 1px solid #F3F4F6;
         }
         #devLabel {
             font-size: 14px;
-            font-weight: bold;
+            font-weight: 700;
             color: #4B5563;
         }
         #infoLabel {
@@ -306,8 +407,7 @@ class POReportApp(QMainWindow):
             color: #9CA3AF;
         }
         """
-        current_ss = self.styleSheet()
-        self.setStyleSheet(current_ss + custom_css)
+        self.setStyleSheet(custom_css)
 
     def calculate_summary_data(self, df, marketplace):
         """Calculate summary statistics from the DataFrame."""
