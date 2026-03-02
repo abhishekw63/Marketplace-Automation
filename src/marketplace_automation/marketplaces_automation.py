@@ -5,16 +5,16 @@ import sys
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QComboBox, QPushButton, QMessageBox, QFileDialog, QFrame,
-    QSizePolicy
+    QLabel, QComboBox, QPushButton, QFileDialog, QFrame,
+    QSizePolicy, QGraphicsDropShadowEffect
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from PyQt6.QtGui import QFont, QIcon, QCursor
-from qt_material import apply_stylesheet
+from PyQt6.QtGui import QFont, QIcon, QCursor, QColor
 
 from config import Config
 from utils import format_indian
 from email_service import EmailService
+from ui_smooth import SmoothDialog
 
 from marketplaces.blinkit import process_blinkit
 from marketplaces.flipkart import process_flipkart
@@ -66,6 +66,9 @@ class POReportApp(QMainWindow):
         if not self._check_expiration():
             sys.exit(0)
 
+        # Overall background (iOS-like subtle gray background for main app area)
+        self.setStyleSheet("QMainWindow { background-color: #F9FAFB; }")
+
         self._build_ui()
         self._apply_custom_styles()
 
@@ -76,7 +79,7 @@ class POReportApp(QMainWindow):
             current_date = datetime.now().date()
             
             if current_date > expiry_date:
-                QMessageBox.critical(
+                SmoothDialog.show_error(
                     self,
                     "Application Expired",
                     f"This application expired on {Config.EXPIRY_DATE}.\n\n"
@@ -87,7 +90,7 @@ class POReportApp(QMainWindow):
             
             days_remaining = (expiry_date - current_date).days
             if days_remaining <= 7:
-                QMessageBox.warning(
+                SmoothDialog.show_warning(
                     self,
                     "Expiration Warning",
                     f"⚠️ This application will expire in {days_remaining} day(s).\n\n"
@@ -97,7 +100,7 @@ class POReportApp(QMainWindow):
             
             return True
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to check expiration: {str(e)}")
+            SmoothDialog.show_error(self, "Error", f"Failed to check expiration: {str(e)}")
             return False
 
     def _build_ui(self):
@@ -130,13 +133,19 @@ class POReportApp(QMainWindow):
         # Body/Content Frame (Card style)
         content_wrapper = QWidget()
         wrapper_layout = QVBoxLayout(content_wrapper)
-        wrapper_layout.setContentsMargins(40, 20, 40, 20)
+        wrapper_layout.setContentsMargins(40, 10, 40, 20)
 
         card_frame = QFrame()
         card_frame.setObjectName("cardFrame")
         card_layout = QVBoxLayout(card_frame)
-        card_layout.setContentsMargins(30, 30, 30, 30)
-        card_layout.setSpacing(20)
+        card_layout.setContentsMargins(35, 35, 35, 35)
+        card_layout.setSpacing(24)
+
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(40)
+        shadow.setColor(QColor(0, 0, 0, 20)) # Light smooth shadow
+        shadow.setOffset(0, 10)
+        card_frame.setGraphicsEffect(shadow)
 
         # Marketplace Selection
         combo_layout = QVBoxLayout()
@@ -199,78 +208,104 @@ class POReportApp(QMainWindow):
         main_layout.addWidget(footer_frame)
         
     def _apply_custom_styles(self):
-        """Apply CSS styling overrides on top of qt-material for a beautiful finish."""
-        # Note: qt-material takes care of dark/light mode and general widget styling.
-        # Here we only override specific parts like our custom card/header looks.
+        """Apply sleek iOS-like smooth CSS styling."""
         custom_css = """
+        * {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+        }
         #titleLabel {
-            font-size: 26px;
-            font-weight: bold;
-            color: #2196F3;
+            font-size: 28px;
+            font-weight: 800;
+            color: #111827; /* Dark slate */
         }
         #subtitleLabel {
-            font-size: 13px;
-            font-style: italic;
-            color: #90A4AE;
+            font-size: 14px;
+            color: #6B7280; /* Neutral gray */
+            margin-top: 5px;
         }
         #cardFrame {
-            background-color: #1E1E1E;
-            border-radius: 12px;
-            border: 1px solid #37474F;
+            background-color: #FFFFFF;
+            border-radius: 24px;
+            /* Border removed to let the shadow do the work, like an iOS card */
         }
         #selectLabel {
-            font-size: 14px;
-            font-weight: bold;
+            font-size: 15px;
+            font-weight: 600;
+            color: #374151;
         }
         QComboBox {
-            padding: 8px 12px;
-            font-size: 14px;
-            border-radius: 6px;
-            border: 1px solid #37474F;
+            padding: 12px 16px;
+            font-size: 15px;
+            font-weight: 500;
+            color: #1F2937;
+            background-color: #F3F4F6;
+            border-radius: 12px;
+            border: 1px solid #E5E7EB;
+        }
+        QComboBox:hover {
+            background-color: #E5E7EB;
+            border: 1px solid #D1D5DB;
         }
         QComboBox::drop-down {
             border: none;
+            width: 30px;
+        }
+        QComboBox::down-arrow {
+            /* Fallback basic arrow since we don't have custom svgs */
+            image: none;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #FFFFFF;
+            border-radius: 8px;
+            border: 1px solid #E5E7EB;
+            selection-background-color: #F3F4F6;
+            selection-color: #111827;
+            padding: 4px;
+            outline: none;
         }
         #generateBtn {
-            font-size: 15px;
+            font-size: 16px;
             font-weight: bold;
-            background-color: #4CAF50;
+            background-color: #007AFF; /* iOS Blue */
             color: white;
-            border-radius: 8px;
+            border-radius: 14px;
             border: none;
+            padding: 14px;
         }
         #generateBtn:hover {
-            background-color: #43A047;
+            background-color: #0066D6;
+        }
+        #generateBtn:pressed {
+            background-color: #0052AC;
         }
         #generateBtn:disabled {
-            background-color: #2E7D32;
-            color: #9E9E9E;
+            background-color: #93C5FD;
+            color: #EFF6FF;
         }
         #statusLabel {
-            font-size: 13px;
-            font-weight: bold;
-            color: #FFB300;
+            font-size: 14px;
+            font-weight: 600;
+            color: #10B981; /* Emerald green */
         }
         #comingSoonLabel {
-            font-size: 12px;
+            font-size: 13px;
             font-style: italic;
-            color: #78909C;
+            color: #9CA3AF;
         }
         #footerFrame {
-            background-color: #121212;
-            border-top: 1px solid #263238;
+            background-color: #FFFFFF;
+            border-top: 1px solid #E5E7EB;
         }
         #devLabel {
-            font-size: 13px;
+            font-size: 14px;
             font-weight: bold;
-            color: #ECEFF1;
+            color: #4B5563;
         }
         #infoLabel {
-            font-size: 11px;
-            color: #B0BEC5;
+            font-size: 12px;
+            color: #9CA3AF;
         }
         """
-        # Append to existing stylesheet if qt-material is applied
         current_ss = self.styleSheet()
         self.setStyleSheet(current_ss + custom_css)
 
@@ -320,7 +355,7 @@ class POReportApp(QMainWindow):
         """Main function to trigger report generation via QThread."""
         marketplace = self.marketplace_dropdown.currentText()
         if marketplace == "Zepto":
-            QMessageBox.information(self, "Info", "Zepto integration is coming soon!")
+            SmoothDialog.show_info(self, "Info", "Zepto integration is coming soon!")
             return
 
         file_path, _ = QFileDialog.getOpenFileName(
@@ -346,7 +381,7 @@ class POReportApp(QMainWindow):
         """Handle errors from the processing thread."""
         self.generate_btn.setEnabled(True)
         self.status_label.setText("")
-        QMessageBox.critical(self, "Error", f"Something went wrong:\n{error_msg}")
+        SmoothDialog.show_error(self, "Error", f"Something went wrong:\n{error_msg}")
 
     def _handle_process_success(self, result):
         """Handle successful processing and prompt user interactions."""
@@ -375,16 +410,15 @@ class POReportApp(QMainWindow):
             f"{sku_status}"
         )
 
-        QMessageBox.information(self, "Success", success_msg)
-        QMessageBox.information(self, "PO Summary", summary_text)
+        SmoothDialog.show_info(self, "Success", success_msg)
+        SmoothDialog.show_info(self, "PO Summary", summary_text)
 
         # Send email prompt
-        reply = QMessageBox.question(
-            self, 'Send Email', 'Do you want to send this summary via email?',
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
+        wants_email = SmoothDialog.ask_question(
+            self, 'Send Email', 'Do you want to send this summary via email?'
         )
 
-        if reply == QMessageBox.StandardButton.Yes:
+        if wants_email:
             self.status_label.setText("Sending email...")
             QApplication.processEvents() # Force UI update before blocking email send (or ideally move this to a thread too)
 
@@ -401,26 +435,23 @@ class POReportApp(QMainWindow):
                 if Config.CC_RECIPIENTS:
                     cc_list = "\n".join([f"  • {email}" for email in Config.CC_RECIPIENTS])
                     recipient_info += f"\n\nCC:\n{cc_list}"
-                QMessageBox.information(self, "Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
+                SmoothDialog.show_info(self, "Email Sent", f"Summary sent successfully to:\n\n{recipient_info}")
             else:
-                QMessageBox.critical(self, "Email Error", f"Failed to send email:\n{err_msg}")
+                SmoothDialog.show_error(self, "Email Error", f"Failed to send email:\n{err_msg}")
 
         # Ask to open files
         if marketplace == "Swiggy":
-            if QMessageBox.question(self, "Open File", "Do you want to open the main Excel report?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            if SmoothDialog.ask_question(self, "Open File", "Do you want to open the main Excel report?"):
                 os.startfile(output_file)
-            if QMessageBox.question(self, "Open Folder", "Do you want to open the PO workbooks folder?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            if SmoothDialog.ask_question(self, "Open Folder", "Do you want to open the PO workbooks folder?"):
                 os.startfile(result['output_folder'])
         else:
-            if QMessageBox.question(self, "Open File", "Do you want to open the generated Excel file?", QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No) == QMessageBox.StandardButton.Yes:
+            if SmoothDialog.ask_question(self, "Open File", "Do you want to open the generated Excel file?"):
                 os.startfile(output_file)
                 self.close()
 
 def main():
     app = QApplication(sys.argv)
-
-    # Apply a modern dark theme from qt-material
-    apply_stylesheet(app, theme='dark_blue.xml')
 
     window = POReportApp()
     window.show()

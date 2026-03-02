@@ -4,4 +4,3 @@ openpyxl
 tqdm
 python-dotenv
 PyQt6
-qt-material
