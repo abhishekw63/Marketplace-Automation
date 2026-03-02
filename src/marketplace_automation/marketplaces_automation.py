@@ -143,16 +143,23 @@ class POReportApp(QMainWindow):
 
     def _build_ui(self):
         """Construct the PyQt6 widgets for the application."""
-        # Main rounded window background
-        self.main_bg = QFrame(self)
-        self.main_bg.setObjectName("mainBg")
-        self.setCentralWidget(self.main_bg)
+        # Wrapper widget to hold the shadow padding
+        self.wrapper = QWidget(self)
+        self.setCentralWidget(self.wrapper)
+        wrapper_layout = QVBoxLayout(self.wrapper)
+        # Give padding around the main frame so the shadow isn't clipped
+        wrapper_layout.setContentsMargins(15, 15, 15, 15)
 
-        # Add a soft drop shadow to the entire window for floating effect
+        # Main rounded window background
+        self.main_bg = QFrame(self.wrapper)
+        self.main_bg.setObjectName("mainBg")
+        wrapper_layout.addWidget(self.main_bg)
+
+        # Add a soft drop shadow to the main frame
         window_shadow = QGraphicsDropShadowEffect(self)
-        window_shadow.setBlurRadius(30)
-        window_shadow.setColor(QColor(0, 0, 0, 40))
-        window_shadow.setOffset(0, 5)
+        window_shadow.setBlurRadius(20)
+        window_shadow.setColor(QColor(0, 0, 0, 60))
+        window_shadow.setOffset(0, 4)
         self.main_bg.setGraphicsEffect(window_shadow)
 
         main_layout = QVBoxLayout(self.main_bg)
@@ -167,11 +174,13 @@ class POReportApp(QMainWindow):
         header_frame = QFrame()
         header_frame.setObjectName("headerFrame")
         header_layout = QVBoxLayout(header_frame)
-        header_layout.setContentsMargins(20, 5, 20, 20)
+        header_layout.setContentsMargins(20, 0, 20, 15)
         header_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        header_layout.setSpacing(5)
 
         logo_layout = QHBoxLayout()
         logo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
         logo_layout.setSpacing(15)
 
         logo_lbl = QLabel()
@@ -180,12 +189,12 @@ class POReportApp(QMainWindow):
         if os.path.exists(logo_path):
             pixmap = QPixmap(logo_path)
             # Resize smoothly to fit header height
-            pixmap = pixmap.scaledToHeight(40, Qt.TransformationMode.SmoothTransformation)
+            pixmap = pixmap.scaledToHeight(32, Qt.TransformationMode.SmoothTransformation)
             logo_lbl.setPixmap(pixmap)
 
         title_label = QLabel("PO Report Generator")
         title_label.setObjectName("titleLabel")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         logo_layout.addWidget(logo_lbl)
         logo_layout.addWidget(title_label)
@@ -235,8 +244,8 @@ class POReportApp(QMainWindow):
 
         card_layout.addLayout(combo_layout)
 
-        # Generate Button
-        self.generate_btn = QPushButton("Select File & Generate Report")
+        # Generate Button (using && to render a single & in PyQt)
+        self.generate_btn = QPushButton("Select File && Generate Report")
         self.generate_btn.setObjectName("generateBtn")
         self.generate_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         self.generate_btn.setMinimumHeight(50)
@@ -261,6 +270,11 @@ class POReportApp(QMainWindow):
         main_layout.addStretch()
 
         # Footer Frame
+        footer_frame = self._build_footer()
+        main_layout.addWidget(footer_frame)
+
+    def _build_footer(self):
+        """Build and return the footer section of the UI."""
         footer_frame = QFrame()
         footer_frame.setObjectName("footerFrame")
         footer_layout = QVBoxLayout(footer_frame)
@@ -277,8 +291,8 @@ class POReportApp(QMainWindow):
 
         footer_layout.addWidget(dev_label)
         footer_layout.addWidget(info_label)
-        main_layout.addWidget(footer_frame)
-        
+        return footer_frame
+
     def _apply_custom_styles(self):
         """Apply sleek iOS-like smooth CSS styling."""
         custom_css = """
