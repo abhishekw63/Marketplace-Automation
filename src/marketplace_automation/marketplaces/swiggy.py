@@ -14,8 +14,8 @@ def process_swiggy(file_path):
     df.columns = df.columns.str.strip().str.replace(" ", "").str.upper()
     df = df[df['STATUS'] == 'CONFIRMED']
 
-    df['POCREATEDAT'] = pd.to_datetime(df['POCREATEDAT'], dayfirst=True, errors='coerce').dt.date
-    df['POEXPIRYDATE'] = pd.to_datetime(df['POEXPIRYDATE'], dayfirst=True, errors='coerce').dt.date
+    df['POCREATEDAT'] = pd.to_datetime(df['POCREATEDAT'], dayfirst=True, errors='coerce').dt.strftime('%d-%m-%Y')
+    df['POEXPIRYDATE'] = pd.to_datetime(df['POEXPIRYDATE'], dayfirst=True, errors='coerce').dt.strftime('%d-%m-%Y')
 
     # Aggregate PO Tracker
     tracker_summary = df.groupby(['PONUMBER', 'FACILITYNAME'], as_index=False).agg({

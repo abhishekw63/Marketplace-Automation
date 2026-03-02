@@ -10,7 +10,7 @@ def process_blinkit(file_path):
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
     df['po_number'] = df['po_number'].astype(str).str.replace(r'\.0$', '', regex=True)
     df['order_date'] = pd.to_datetime(df['order_date'], dayfirst=True, errors='coerce')
-    df['expiry_date'] = pd.to_datetime(df['expiry_date'], dayfirst=False, errors='coerce')
+    df['expiry_date'] = pd.to_datetime(df['expiry_date'], dayfirst=True, errors='coerce')
 
     df['order_date'] = df['order_date'].dt.strftime('%d-%m-%Y')
     df['expiry_date'] = df['expiry_date'].dt.strftime('%d-%m-%Y')

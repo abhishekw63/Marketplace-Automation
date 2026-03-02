@@ -181,8 +181,10 @@ class POReportApp:
                  df_calc['PO Value_num'] = df_calc['PO Value']
             total_value = df_calc['PO Value_num'].sum()
 
-            min_date = df['Order Date'].min()
-            max_date = df['Expiry Date'].max()
+            order_date_dt = pd.to_datetime(df['Order Date'], format='%d-%m-%Y', errors='coerce')
+            expiry_date_dt = pd.to_datetime(df['Expiry Date'], format='%d-%m-%Y', errors='coerce')
+            min_date = order_date_dt.min()
+            max_date = expiry_date_dt.max()
         else:
             total_pos = df.shape[0]
             total_units = 0
