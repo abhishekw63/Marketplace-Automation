@@ -101,6 +101,11 @@ class POReportApp(QMainWindow):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(base_path, "renee_icon.png")
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
+
         self.last_summary = {}
         self.worker = None
 
@@ -169,6 +174,19 @@ class POReportApp(QMainWindow):
         # Custom Title Bar
         self.title_bar = DraggableTitleBar(self)
         main_layout.addWidget(self.title_bar)
+
+        # Apply icon to the draggable title bar layout
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "renee_icon.png")
+        if os.path.exists(icon_path):
+            icon_lbl = QLabel()
+            pixmap = QPixmap(icon_path).scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+            icon_lbl.setPixmap(pixmap)
+            # Insert at the beginning of the title bar layout
+            self.title_bar.layout().insertWidget(0, icon_lbl)
+            # Add a small title text next to it
+            app_title_lbl = QLabel(" PO Report Generator")
+            app_title_lbl.setStyleSheet("font-size: 12px; font-weight: bold; color: #4B5563;")
+            self.title_bar.layout().insertWidget(1, app_title_lbl)
 
         # Header Frame
         header_frame = QFrame()
@@ -281,6 +299,7 @@ class POReportApp(QMainWindow):
         custom_css = """
         * {
             font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+            font-size: 14px;
         }
         /* Top Level App Background */
         #mainBg {
