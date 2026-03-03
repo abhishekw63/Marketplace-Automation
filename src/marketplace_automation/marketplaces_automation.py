@@ -7,9 +7,10 @@ import ctypes
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QComboBox, QPushButton, QFileDialog, QFrame,
-    QSizePolicy, QGraphicsDropShadowEffect, QTabWidget
+    QSizePolicy, QGraphicsDropShadowEffect, QStackedWidget,
+    QGraphicsOpacityEffect
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QFont, QIcon, QCursor, QColor, QPixmap
 
 from config import Config
@@ -105,7 +106,7 @@ class POReportApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("PO Report Generator")
-        self.setFixedSize(620, 580)
+        self.setFixedSize(620, 650)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
@@ -182,18 +183,38 @@ class POReportApp(QMainWindow):
         header_frame = self._build_header()
         main_layout.addWidget(header_frame)
 
-        # Modular UI Assembly - Tabbed Body/Content Frame
-        self.tabs = QTabWidget()
+        # Modular UI Assembly - Custom Tab Bar
+        self.tab_bar_layout = QHBoxLayout()
+        self.tab_bar_layout.setContentsMargins(55, 0, 55, 0)
+        self.tab_bar_layout.setSpacing(5)
+
+        self.btn_marketplace = QPushButton("Marketplace POs")
+        self.btn_marketplace.setObjectName("tabButtonActive")
+        self.btn_marketplace.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_marketplace.clicked.connect(lambda: self._switch_tab(0))
+
+        self.btn_dump = QPushButton("Dump Generator")
+        self.btn_dump.setObjectName("tabButtonInactive")
+        self.btn_dump.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.btn_dump.clicked.connect(lambda: self._switch_tab(1))
+
+        self.tab_bar_layout.addWidget(self.btn_marketplace)
+        self.tab_bar_layout.addWidget(self.btn_dump)
+        self.tab_bar_layout.addStretch()
+
+        main_layout.addLayout(self.tab_bar_layout)
+
+        # Modular UI Assembly - Stacked Content Frame
+        self.tabs = QStackedWidget()
         self.tabs.setObjectName("mainTabs")
-        self.tabs.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
 
         # Build original Marketplace PO tab
         po_tab_widget = self._build_content()
-        self.tabs.addTab(po_tab_widget, "Marketplace POs")
+        self.tabs.addWidget(po_tab_widget)
 
         # Build new Dump Generator tab
         dump_tab_widget = self._build_dump_generator_content()
-        self.tabs.addTab(dump_tab_widget, "Dump Generator")
+        self.tabs.addWidget(dump_tab_widget)
 
         main_layout.addWidget(self.tabs)
 
@@ -202,6 +223,51 @@ class POReportApp(QMainWindow):
         # Modular UI Assembly - Footer Frame
         footer_frame = self._build_footer()
         main_layout.addWidget(footer_frame)
+
+    def _switch_tab(self, index):
+        if self.tabs.currentIndex() == index:
+            return
+
+        # Update tab button styles
+        if index == 0:
+            self.btn_marketplace.setObjectName("tabButtonActive")
+            self.btn_dump.setObjectName("tabButtonInactive")
+        else:
+            self.btn_marketplace.setObjectName("tabButtonInactive")
+            self.btn_dump.setObjectName("tabButtonActive")
+
+        self.btn_marketplace.style().unpolish(self.btn_marketplace)
+        self.btn_marketplace.style().polish(self.btn_marketplace)
+        self.btn_dump.style().unpolish(self.btn_dump)
+        self.btn_dump.style().polish(self.btn_dump)
+
+        # Apply a smooth fade out to current widget
+        current_widget = self.tabs.currentWidget()
+
+        # QWidget doesn't have windowOpacity property directly for subwidgets.
+        # We need a QGraphicsOpacityEffect.
+        self.effect_out = QGraphicsOpacityEffect(current_widget)
+        current_widget.setGraphicsEffect(self.effect_out)
+
+        self.anim_out = QPropertyAnimation(self.effect_out, b"opacity")
+        self.anim_out.setDuration(150)
+        self.anim_out.setStartValue(1.0)
+        self.anim_out.setEndValue(0.0)
+        self.anim_out.finished.connect(lambda: self._on_fade_out_finished(index))
+        self.anim_out.start()
+
+    def _on_fade_out_finished(self, index):
+        self.tabs.setCurrentIndex(index)
+        current_widget = self.tabs.currentWidget()
+
+        self.effect_in = QGraphicsOpacityEffect(current_widget)
+        current_widget.setGraphicsEffect(self.effect_in)
+
+        self.anim_in = QPropertyAnimation(self.effect_in, b"opacity")
+        self.anim_in.setDuration(150)
+        self.anim_in.setStartValue(0.0)
+        self.anim_in.setEndValue(1.0)
+        self.anim_in.start()
 
     def _build_header(self):
         """Build and return the header section containing the application title."""
@@ -238,12 +304,12 @@ class POReportApp(QMainWindow):
         """Build and return the main content section containing inputs and actions."""
         content_wrapper = QWidget()
         wrapper_layout = QVBoxLayout(content_wrapper)
-        wrapper_layout.setContentsMargins(35, 10, 35, 20)
+        wrapper_layout.setContentsMargins(35, 10, 35, 10)
 
         card_frame = QFrame()
         card_frame.setObjectName("cardFrame")
         card_layout = QVBoxLayout(card_frame)
-        card_layout.setContentsMargins(35, 40, 35, 40)
+        card_layout.setContentsMargins(35, 30, 35, 30)
         card_layout.setSpacing(24)
 
         shadow = QGraphicsDropShadowEffect(self)
@@ -299,12 +365,12 @@ class POReportApp(QMainWindow):
         """Build and return the content section for generating PO dumps."""
         content_wrapper = QWidget()
         wrapper_layout = QVBoxLayout(content_wrapper)
-        wrapper_layout.setContentsMargins(35, 10, 35, 20)
+        wrapper_layout.setContentsMargins(35, 10, 35, 10)
 
         card_frame = QFrame()
         card_frame.setObjectName("cardFrame")
         card_layout = QVBoxLayout(card_frame)
-        card_layout.setContentsMargins(35, 40, 35, 40)
+        card_layout.setContentsMargins(35, 30, 35, 30)
         card_layout.setSpacing(24)
 
         shadow = QGraphicsDropShadowEffect(self)
@@ -528,11 +594,20 @@ class POReportApp(QMainWindow):
         }}
 
         /* Tab Widget Styling */
-        QTabWidget::pane {{
+        #tabButtonActive {{
+            background: rgba(255, 255, 255, 0.85);
+            color: #007AFF;
+            padding: 8px 16px;
+            font-size: 15px;
+            font-weight: bold;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            border-bottom-left-radius: 0px;
+            border-bottom-right-radius: 0px;
             border: none;
-            background: transparent;
+            margin-right: 2px;
         }}
-        QTabBar::tab {{
+        #tabButtonInactive {{
             background: rgba(255, 255, 255, 0.4);
             color: #374151;
             padding: 8px 16px;
@@ -756,15 +831,15 @@ def main():
 
     app = QApplication(sys.argv)
 
-    # Set application icon to replace default python logo
-    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'renee.ico')
-    app.setWindowIcon(QIcon(icon_path))
-
     # Set a default application font and stylesheet to prevent "QFont::setPointSize: Point size <= 0"
-    # warnings on systems missing standard font configurations.
+    # warnings on systems missing standard font configurations. Must be done before any widget creation.
     default_font = QFont("Segoe UI", 10)
     app.setFont(default_font)
     app.setStyleSheet("* { font-size: 14px; }")
+
+    # Set application icon to replace default python logo
+    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'renee.ico')
+    app.setWindowIcon(QIcon(icon_path))
 
     window = POReportApp()
     window.show()
