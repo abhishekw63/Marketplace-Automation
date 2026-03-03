@@ -528,11 +528,11 @@ class POReportApp(QMainWindow):
         }}
 
         /* Tab Widget Styling */
-        QTabWidget::pane {
+        QTabWidget::pane {{
             border: none;
             background: transparent;
-        }
-        QTabBar::tab {
+        }}
+        QTabBar::tab {{
             background: rgba(255, 255, 255, 0.4);
             color: #374151;
             padding: 8px 16px;
@@ -542,14 +542,14 @@ class POReportApp(QMainWindow):
             border-top-right-radius: 8px;
             margin-right: 2px;
             margin-left: 20px;
-        }
-        QTabBar::tab:selected {
+        }}
+        QTabBar::tab:selected {{
             background: rgba(255, 255, 255, 0.85);
             color: #007AFF;
-        }
-        QTabBar::tab:hover:!selected {
+        }}
+        QTabBar::tab:hover:!selected {{
             background: rgba(255, 255, 255, 0.6);
-        }
+        }}
         """
 
         self.setStyleSheet(custom_css)
