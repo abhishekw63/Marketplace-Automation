@@ -101,11 +101,6 @@ class POReportApp(QMainWindow):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        icon_path = os.path.join(base_path, "renee_icon.png")
-        if os.path.exists(icon_path):
-            self.setWindowIcon(QIcon(icon_path))
-
         self.last_summary = {}
         self.worker = None
 
@@ -174,19 +169,6 @@ class POReportApp(QMainWindow):
         # Custom Title Bar
         self.title_bar = DraggableTitleBar(self)
         main_layout.addWidget(self.title_bar)
-
-        # Apply icon to the draggable title bar layout
-        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "renee_icon.png")
-        if os.path.exists(icon_path):
-            icon_lbl = QLabel()
-            pixmap = QPixmap(icon_path).scaled(24, 24, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-            icon_lbl.setPixmap(pixmap)
-            # Insert at the beginning of the title bar layout
-            self.title_bar.layout().insertWidget(0, icon_lbl)
-            # Add a small title text next to it
-            app_title_lbl = QLabel(" PO Report Generator")
-            app_title_lbl.setStyleSheet("font-size: 12px; font-weight: bold; color: #4B5563;")
-            self.title_bar.layout().insertWidget(1, app_title_lbl)
 
         # Header Frame
         header_frame = QFrame()
@@ -303,7 +285,7 @@ class POReportApp(QMainWindow):
         }
         /* Top Level App Background */
         #mainBg {
-            background-color: #F8F9FA;
+            /* Use a full absolute path to the image using Python formatting later, or relative if it works */
             border-radius: 20px;
             border: 1px solid #E5E7EB;
         }
@@ -315,8 +297,8 @@ class POReportApp(QMainWindow):
         #closeBtn {
             font-size: 12px;
             font-weight: bold;
-            color: #9CA3AF;
-            background-color: #F3F4F6;
+            color: #FFFFFF;
+            background-color: rgba(255, 255, 255, 0.2);
             border-radius: 12px;
             border: none;
         }
@@ -327,15 +309,17 @@ class POReportApp(QMainWindow):
         #titleLabel {
             font-size: 28px;
             font-weight: 800;
-            color: #111827;
+            color: #FFFFFF; /* changed to white for dark bg */
+            background-color: transparent;
         }
         #subtitleLabel {
             font-size: 14px;
-            color: #6B7280;
+            color: #E5E7EB; /* light grey */
             margin-top: 2px;
+            background-color: transparent;
         }
         #cardFrame {
-            background-color: #FFFFFF;
+            background-color: rgba(255, 255, 255, 0.95); /* slightly transparent white card */
             border-radius: 20px;
         }
         #selectLabel {
@@ -408,21 +392,39 @@ class POReportApp(QMainWindow):
             color: #9CA3AF;
         }
         #footerFrame {
-            background-color: #FFFFFF;
+            background-color: transparent;
             border-bottom-left-radius: 20px;
             border-bottom-right-radius: 20px;
-            border-top: 1px solid #F3F4F6;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
         }
         #devLabel {
             font-size: 14px;
             font-weight: 700;
-            color: #4B5563;
+            color: #FFFFFF;
+            background-color: transparent;
         }
         #infoLabel {
             font-size: 12px;
-            color: #9CA3AF;
+            color: #E5E7EB;
+            background-color: transparent;
         }
         """
+
+        # Inject the background image using absolute path so it resolves regardless of execution directory
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        bg_path = os.path.join(base_path, "bg_theme.jpg")
+
+        # We need to escape backslashes on Windows for CSS
+        bg_path = bg_path.replace("\\", "/")
+
+        custom_css += f"""
+        #mainBg {{
+            background-image: url('{bg_path}');
+            background-repeat: no-repeat;
+            background-position: center;
+        }}
+        """
+
         self.setStyleSheet(custom_css)
 
     def calculate_summary_data(self, df, marketplace):
