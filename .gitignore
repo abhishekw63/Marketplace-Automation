@@ -1,6 +1,5 @@
 .env
 build
-assets
 dist
 # Python cache
 __pycache__/
