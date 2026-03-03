@@ -2,6 +2,7 @@ import pandas as pd
 from datetime import datetime
 import os
 import sys
+import ctypes
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -599,6 +600,12 @@ class POReportApp(QMainWindow):
                 self.close()
 
 def main():
+    # Tell Windows to treat this process as a standalone application rather than grouping it under Python
+    # This ensures the taskbar uses our custom icon instead of the generic Python logo
+    if os.name == 'nt':
+        myappid = 'reneecosmetics.poreportgenerator.v1'
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+
     app = QApplication(sys.argv)
 
     # Set application icon to replace default python logo
