@@ -170,7 +170,22 @@ class POReportApp(QMainWindow):
         self.title_bar = DraggableTitleBar(self)
         main_layout.addWidget(self.title_bar)
 
-        # Header Frame
+        # Modular UI Assembly - Header Frame
+        header_frame = self._build_header()
+        main_layout.addWidget(header_frame)
+
+        # Modular UI Assembly - Body/Content Frame (Card style)
+        content_wrapper = self._build_content()
+        main_layout.addWidget(content_wrapper)
+
+        main_layout.addStretch()
+
+        # Modular UI Assembly - Footer Frame
+        footer_frame = self._build_footer()
+        main_layout.addWidget(footer_frame)
+
+    def _build_header(self):
+        """Build and return the header section containing the application title."""
         header_frame = QFrame()
         header_frame.setObjectName("headerFrame")
         header_layout = QVBoxLayout(header_frame)
@@ -198,9 +213,10 @@ class POReportApp(QMainWindow):
 
         header_layout.addWidget(title_label)
         header_layout.addWidget(subtitle_label)
-        main_layout.addWidget(header_frame)
+        return header_frame
 
-        # Body/Content Frame (Card style)
+    def _build_content(self):
+        """Build and return the main content section containing inputs and actions."""
         content_wrapper = QWidget()
         wrapper_layout = QVBoxLayout(content_wrapper)
         wrapper_layout.setContentsMargins(50, 10, 50, 20)
@@ -258,13 +274,7 @@ class POReportApp(QMainWindow):
         card_layout.addWidget(coming_soon_lbl)
 
         wrapper_layout.addWidget(card_frame)
-        main_layout.addWidget(content_wrapper)
-        
-        main_layout.addStretch()
-
-        # Footer Frame
-        footer_frame = self._build_footer()
-        main_layout.addWidget(footer_frame)
+        return content_wrapper
 
     def _build_footer(self):
         """Build and return the footer section of the UI."""
@@ -591,10 +601,15 @@ class POReportApp(QMainWindow):
 def main():
     app = QApplication(sys.argv)
 
-    # Set a default application font to prevent "QFont::setPointSize: Point size <= 0"
+    # Set application icon to replace default python logo
+    icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'assets', 'renee.ico')
+    app.setWindowIcon(QIcon(icon_path))
+
+    # Set a default application font and stylesheet to prevent "QFont::setPointSize: Point size <= 0"
     # warnings on systems missing standard font configurations.
     default_font = QFont("Segoe UI", 10)
     app.setFont(default_font)
+    app.setStyleSheet("* { font-size: 14px; }")
 
     window = POReportApp()
     window.show()

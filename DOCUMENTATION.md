@@ -9,6 +9,7 @@ The application utilizes **PyQt6** to deliver a premium, "iOS-like", frameless U
 ## Architecture & Technology Stack
 
 - **UI Framework:** `PyQt6` is used to create smooth, scalable, and modern graphical interfaces. Native window controls are bypassed in favor of a `FramelessWindowHint` and a custom `DraggableTitleBar` to enforce branding and custom styling via QSS (Qt Style Sheets).
+- **Zero to Hero Refactoring:** The main UI assembly logic has been refactored into logical sub-components (`_build_header`, `_build_content`, `_build_footer`) to enforce strict modularity and separation of concerns, ensuring high scalability and maintainability.
 - **Asynchronous Execution:** Heavy I/O bound processing (like parsing huge Excel files using `pandas` and formatting them via `openpyxl`) is fully delegated to a `QThread` (`ReportWorker`). This decoupled design ensures the main UI thread never blocks, preventing the "Application Not Responding" operating system overlay.
 - **Data Layer:** Standardized data manipulation relies on `pandas` to read, filter, clean, and aggregate data.
 - **Notification Layer:** The `EmailService` class abstracts away SMTP server communication, transforming Pandas DataFrames into cleanly styled HTML tables before dispatch.
