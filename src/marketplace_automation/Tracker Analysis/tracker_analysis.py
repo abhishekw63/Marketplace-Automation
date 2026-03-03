@@ -122,7 +122,8 @@ class POTracker:
         merged = pd.merge(ref_df, curr_df, on="Composite_Key", suffixes=("_old", "_new"), how="outer", indicator=True)
         changes = []
 
-        for _, row in tqdm(merged.iterrows(), total=merged.shape[0], desc="Comparing records"):
+        # Convert to records to avoid iterrows overhead
+        for row in tqdm(merged.to_dict('records'), desc="Comparing records"):
             if row["_merge"] == "left_only":
                 changes.append([row["Composite_Key"], "REMOVED", "", "", ""])
             elif row["_merge"] == "right_only":

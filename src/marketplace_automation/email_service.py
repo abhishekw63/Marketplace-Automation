@@ -187,10 +187,10 @@ body {{
             html += "</tr>\n"
 
             # Add table rows
-            for idx, row in tracker_df.iterrows():
+            for row in tracker_df.itertuples(index=False):
                 html += "<tr>"
-                for col in tracker_df.columns:
-                    cell_value = row[col]
+                for col_idx, col in enumerate(tracker_df.columns):
+                    cell_value = row[col_idx]
 
                     # Format dates to DD-MM-YYYY
                     if 'Date' in col and hasattr(cell_value, 'strftime'):
@@ -224,10 +224,10 @@ body {{
             html += "</tr>\n"
 
             # Add SKU table rows (limit to first 50 rows)
-            for idx, row in sku_df.iterrows():
+            for row in sku_df.itertuples(index=False):
                 html += "<tr>"
-                for col in sku_df.columns:
-                    cell_value = row[col]
+                for col_idx, col in enumerate(sku_df.columns):
+                    cell_value = row[col_idx]
                     # Format numbers with Indian formatting if it's the units column
                     if 'unit' in str(col).lower() or 'qty' in str(col).lower():
                         try:

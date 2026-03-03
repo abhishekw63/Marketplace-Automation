@@ -115,7 +115,7 @@ def process_swiggy(file_path):
         ws_po = wb.active
         ws_po.title = "PO Sheet"
         ws_po.append(['EAN', 'SKUDESCRIPTION', 'UNITBASEDCOST', 'ORDEREDQTY'])
-        for idx, row in po_data.iterrows():
+        for row in po_data.to_dict('records'):
             # Safe EAN conversion
             try:
                 ean_value = str(int(float(row['EAN']))) if pd.notna(row['EAN']) else ""

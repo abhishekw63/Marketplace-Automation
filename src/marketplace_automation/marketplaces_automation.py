@@ -7,7 +7,7 @@ import ctypes
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QComboBox, QPushButton, QFileDialog, QFrame,
-    QSizePolicy, QGraphicsDropShadowEffect
+    QSizePolicy, QGraphicsDropShadowEffect, QTabWidget
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QPoint
 from PyQt6.QtGui import QFont, QIcon, QCursor, QColor, QPixmap
@@ -20,25 +20,32 @@ from ui_smooth import SmoothDialog
 from marketplaces.blinkit import process_blinkit
 from marketplaces.flipkart import process_flipkart
 from marketplaces.swiggy import process_swiggy
+from marketplaces.flipkart_dump import process_flipkart_dump
 
 class ReportWorker(QThread):
     """Background worker thread to handle report processing without freezing UI."""
     success = pyqtSignal(dict)
     error = pyqtSignal(str)
+    progress = pyqtSignal(str)
 
-    def __init__(self, marketplace, file_path):
+    def __init__(self, marketplace, files_or_path):
         super().__init__()
         self.marketplace = marketplace
-        self.file_path = file_path
+        self.files_or_path = files_or_path
+
+    def _emit_progress(self, msg):
+        self.progress.emit(msg)
 
     def run(self):
         try:
             if self.marketplace == "Blinkit":
-                result = process_blinkit(self.file_path)
+                result = process_blinkit(self.files_or_path)
             elif self.marketplace == "Flipkart":
-                result = process_flipkart(self.file_path)
+                result = process_flipkart(self.files_or_path)
             elif self.marketplace == "Swiggy":
-                result = process_swiggy(self.file_path)
+                result = process_swiggy(self.files_or_path)
+            elif self.marketplace == "Flipkart Dump":
+                result = process_flipkart_dump(self.files_or_path, self._emit_progress)
             else:
                 self.error.emit("Unknown marketplace selected.")
                 return
@@ -175,9 +182,20 @@ class POReportApp(QMainWindow):
         header_frame = self._build_header()
         main_layout.addWidget(header_frame)
 
-        # Modular UI Assembly - Body/Content Frame (Card style)
-        content_wrapper = self._build_content()
-        main_layout.addWidget(content_wrapper)
+        # Modular UI Assembly - Tabbed Body/Content Frame
+        self.tabs = QTabWidget()
+        self.tabs.setObjectName("mainTabs")
+        self.tabs.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+
+        # Build original Marketplace PO tab
+        po_tab_widget = self._build_content()
+        self.tabs.addTab(po_tab_widget, "Marketplace POs")
+
+        # Build new Dump Generator tab
+        dump_tab_widget = self._build_dump_generator_content()
+        self.tabs.addTab(dump_tab_widget, "Dump Generator")
+
+        main_layout.addWidget(self.tabs)
 
         main_layout.addStretch()
 
@@ -220,7 +238,7 @@ class POReportApp(QMainWindow):
         """Build and return the main content section containing inputs and actions."""
         content_wrapper = QWidget()
         wrapper_layout = QVBoxLayout(content_wrapper)
-        wrapper_layout.setContentsMargins(50, 10, 50, 20)
+        wrapper_layout.setContentsMargins(35, 10, 35, 20)
 
         card_frame = QFrame()
         card_frame.setObjectName("cardFrame")
@@ -270,6 +288,60 @@ class POReportApp(QMainWindow):
 
         # Info Label
         coming_soon_lbl = QLabel("✨ Other marketplaces are coming soon!")
+        coming_soon_lbl.setObjectName("comingSoonLabel")
+        coming_soon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(coming_soon_lbl)
+
+        wrapper_layout.addWidget(card_frame)
+        return content_wrapper
+
+    def _build_dump_generator_content(self):
+        """Build and return the content section for generating PO dumps."""
+        content_wrapper = QWidget()
+        wrapper_layout = QVBoxLayout(content_wrapper)
+        wrapper_layout.setContentsMargins(35, 10, 35, 20)
+
+        card_frame = QFrame()
+        card_frame.setObjectName("cardFrame")
+        card_layout = QVBoxLayout(card_frame)
+        card_layout.setContentsMargins(35, 40, 35, 40)
+        card_layout.setSpacing(24)
+
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(25)
+        shadow.setColor(QColor(0, 0, 0, 60))
+        shadow.setOffset(0, 8)
+        card_frame.setGraphicsEffect(shadow)
+
+        combo_layout = QVBoxLayout()
+        combo_layout.setSpacing(10)
+
+        select_lbl = QLabel("Select Dump Marketplace:")
+        select_lbl.setObjectName("selectLabel")
+
+        self.dump_marketplace_dropdown = QComboBox()
+        self.dump_marketplace_dropdown.setObjectName("marketplaceDropdown")
+        self.dump_marketplace_dropdown.addItems(["Flipkart Dump"])
+        self.dump_marketplace_dropdown.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.dump_marketplace_dropdown.setMinimumHeight(45)
+
+        combo_layout.addWidget(select_lbl)
+        combo_layout.addWidget(self.dump_marketplace_dropdown)
+        card_layout.addLayout(combo_layout)
+
+        self.dump_generate_btn = QPushButton("Select Files && Generate Dump")
+        self.dump_generate_btn.setObjectName("generateBtn")
+        self.dump_generate_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.dump_generate_btn.setMinimumHeight(50)
+        self.dump_generate_btn.clicked.connect(self.generate_dump)
+        card_layout.addWidget(self.dump_generate_btn)
+
+        self.dump_status_label = QLabel("")
+        self.dump_status_label.setObjectName("statusLabel")
+        self.dump_status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        card_layout.addWidget(self.dump_status_label)
+
+        coming_soon_lbl = QLabel("✨ Blinkit coming soon!")
         coming_soon_lbl.setObjectName("comingSoonLabel")
         coming_soon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         card_layout.addWidget(coming_soon_lbl)
@@ -454,6 +526,30 @@ class POReportApp(QMainWindow):
             background-repeat: no-repeat;
             background-position: center;
         }}
+
+        /* Tab Widget Styling */
+        QTabWidget::pane {
+            border: none;
+            background: transparent;
+        }
+        QTabBar::tab {
+            background: rgba(255, 255, 255, 0.4);
+            color: #374151;
+            padding: 8px 16px;
+            font-size: 15px;
+            font-weight: bold;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+            margin-right: 2px;
+            margin-left: 20px;
+        }
+        QTabBar::tab:selected {
+            background: rgba(255, 255, 255, 0.85);
+            color: #007AFF;
+        }
+        QTabBar::tab:hover:!selected {
+            background: rgba(255, 255, 255, 0.6);
+        }
         """
 
         self.setStyleSheet(custom_css)
@@ -526,6 +622,38 @@ class POReportApp(QMainWindow):
         self.worker.error.connect(self._handle_process_error)
         self.worker.start()
 
+    def generate_dump(self):
+        """Main function to trigger dump generator via QThread."""
+        marketplace = self.dump_marketplace_dropdown.currentText()
+
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            f"Select {marketplace} Files",
+            "",
+            "Excel Files (*.xls *.xlsx)"
+        )
+
+        if not files:
+            return
+
+        self.dump_generate_btn.setEnabled(False)
+        self.dump_status_label.setText(f"Processing {len(files)} {marketplace} files...")
+
+        # Setup and start background thread
+        self.worker = ReportWorker(marketplace, files)
+        self.worker.success.connect(self._handle_process_success)
+        self.worker.error.connect(self._handle_process_error)
+        self.worker.progress.connect(self._handle_process_progress)
+        self.worker.start()
+
+    def _handle_process_progress(self, msg):
+        """Update status label with progress updates."""
+        # Use whichever status label belongs to the active tab
+        if self.tabs.currentIndex() == 0:
+            self.status_label.setText(msg)
+        else:
+            self.dump_status_label.setText(msg)
+
     def _handle_process_error(self, error_msg):
         """Handle errors from the processing thread."""
         self.generate_btn.setEnabled(True)
@@ -535,10 +663,30 @@ class POReportApp(QMainWindow):
     def _handle_process_success(self, result):
         """Handle successful processing and prompt user interactions."""
         self.generate_btn.setEnabled(True)
+        self.dump_generate_btn.setEnabled(True)
         self.status_label.setText("")
+        self.dump_status_label.setText("")
 
         marketplace = result['marketplace']
         output_file = result['output_file']
+
+        # Check if this is a Dump Generator result
+        if "Dump" in marketplace:
+            summary = result.get('summary', {})
+            summary_msg = (
+                f"Total PO files processed: {summary.get('total_files')}\n"
+                f"Total SKUs extracted: {summary.get('total_rows')}\n"
+                f"Total Quantity: {summary.get('total_qty')}\n"
+                f"Total Amount: ₹ {format_indian(summary.get('total_amount'))}\n\n"
+                f"File saved at:\n{output_file}"
+            )
+
+            SmoothDialog.show_info(self, "Dump Generator Success", summary_msg)
+
+            if SmoothDialog.ask_question(self, "Open File", "Do you want to open the generated dump file?"):
+                os.startfile(output_file)
+            return
+
         has_sku_data = result['has_sku_data']
         sku_count = result['sku_count']
 
