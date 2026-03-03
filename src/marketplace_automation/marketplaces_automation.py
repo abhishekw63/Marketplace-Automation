@@ -170,40 +170,23 @@ class POReportApp(QMainWindow):
         self.title_bar = DraggableTitleBar(self)
         main_layout.addWidget(self.title_bar)
 
-        # Header Frame with Logo
+        # Header Frame
         header_frame = QFrame()
         header_frame.setObjectName("headerFrame")
         header_layout = QVBoxLayout(header_frame)
-        header_layout.setContentsMargins(20, 0, 20, 15)
+        header_layout.setContentsMargins(20, 10, 20, 15)
         header_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header_layout.setSpacing(5)
 
-        logo_layout = QHBoxLayout()
-        logo_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        logo_layout.setContentsMargins(0, 0, 0, 0)
-        logo_layout.setSpacing(15)
-
-        logo_lbl = QLabel()
-        base_path = os.path.dirname(os.path.abspath(__file__))
-        logo_path = os.path.join(base_path, "renee_logo.png")
-        if os.path.exists(logo_path):
-            pixmap = QPixmap(logo_path)
-            # Resize smoothly to fit header height
-            pixmap = pixmap.scaledToHeight(32, Qt.TransformationMode.SmoothTransformation)
-            logo_lbl.setPixmap(pixmap)
-
         title_label = QLabel("PO Report Generator")
         title_label.setObjectName("titleLabel")
-        title_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-
-        logo_layout.addWidget(logo_lbl)
-        logo_layout.addWidget(title_label)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         subtitle_label = QLabel("Automated Purchase Order Intelligence System")
         subtitle_label.setObjectName("subtitleLabel")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        header_layout.addLayout(logo_layout)
+        header_layout.addWidget(title_label)
         header_layout.addWidget(subtitle_label)
         main_layout.addWidget(header_frame)
 
@@ -566,6 +549,11 @@ class POReportApp(QMainWindow):
 
 def main():
     app = QApplication(sys.argv)
+
+    # Set a default application font to prevent "QFont::setPointSize: Point size <= 0"
+    # warnings on systems missing standard font configurations.
+    default_font = QFont("Segoe UI", 10)
+    app.setFont(default_font)
 
     window = POReportApp()
     window.show()
