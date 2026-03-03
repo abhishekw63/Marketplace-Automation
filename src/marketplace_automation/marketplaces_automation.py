@@ -181,10 +181,20 @@ class POReportApp(QMainWindow):
         title_label = QLabel("PO Report Generator")
         title_label.setObjectName("titleLabel")
         title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title_shadow = QGraphicsDropShadowEffect(self)
+        title_shadow.setBlurRadius(8)
+        title_shadow.setColor(QColor(0, 0, 0, 150))
+        title_shadow.setOffset(0, 2)
+        title_label.setGraphicsEffect(title_shadow)
 
         subtitle_label = QLabel("Automated Purchase Order Intelligence System")
         subtitle_label.setObjectName("subtitleLabel")
         subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        subtitle_shadow = QGraphicsDropShadowEffect(self)
+        subtitle_shadow.setBlurRadius(5)
+        subtitle_shadow.setColor(QColor(0, 0, 0, 120))
+        subtitle_shadow.setOffset(0, 1)
+        subtitle_label.setGraphicsEffect(subtitle_shadow)
 
         header_layout.addWidget(title_label)
         header_layout.addWidget(subtitle_label)
@@ -203,8 +213,8 @@ class POReportApp(QMainWindow):
 
         shadow = QGraphicsDropShadowEffect(self)
         shadow.setBlurRadius(25)
-        shadow.setColor(QColor(0, 0, 0, 15)) # Very subtle iOS shadow
-        shadow.setOffset(0, 6)
+        shadow.setColor(QColor(0, 0, 0, 60)) # More visible shadow to separate from background
+        shadow.setOffset(0, 8)
         card_frame.setGraphicsEffect(shadow)
 
         # Marketplace Selection
@@ -267,10 +277,20 @@ class POReportApp(QMainWindow):
         dev_label = QLabel("👨‍💻 Developer: Abhishek Wagh")
         dev_label.setObjectName("devLabel")
         dev_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        dev_shadow = QGraphicsDropShadowEffect(self)
+        dev_shadow.setBlurRadius(4)
+        dev_shadow.setColor(QColor(0, 0, 0, 180))
+        dev_shadow.setOffset(0, 1)
+        dev_label.setGraphicsEffect(dev_shadow)
 
         info_label = QLabel("🆔 Owner ID: RENEE-723  •  📧 abhishek.wagh@reneecosmetics.in")
         info_label.setObjectName("infoLabel")
         info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        info_shadow = QGraphicsDropShadowEffect(self)
+        info_shadow.setBlurRadius(4)
+        info_shadow.setColor(QColor(0, 0, 0, 180))
+        info_shadow.setOffset(0, 1)
+        info_label.setGraphicsEffect(info_shadow)
 
         footer_layout.addWidget(dev_label)
         footer_layout.addWidget(info_label)
@@ -319,7 +339,7 @@ class POReportApp(QMainWindow):
             background-color: transparent;
         }
         #cardFrame {
-            background-color: rgba(255, 255, 255, 0.95); /* slightly transparent white card */
+            background-color: rgba(255, 255, 255, 0.85); /* more transparent white card for glassmorphism */
             border-radius: 20px;
         }
         #selectLabel {

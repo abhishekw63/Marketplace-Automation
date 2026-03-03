@@ -9,9 +9,11 @@ def process_blinkit(file_path):
     df = pd.read_csv(file_path)
     df.columns = df.columns.str.strip().str.lower().str.replace(" ", "_")
     df['po_number'] = df['po_number'].astype(str).str.replace(r'\.0$', '', regex=True)
-    df['order_date'] = pd.to_datetime(df['order_date'], format='mixed', dayfirst=False, errors='coerce')
-    df['expiry_date'] = pd.to_datetime(df['expiry_date'], format='mixed', dayfirst=False, errors='coerce')
+    # Parse ISO 8601 formatted datetime strings natively, converting to timezone-naive
+    df['order_date'] = pd.to_datetime(df['order_date'], format="ISO8601", errors='coerce').dt.tz_localize(None)
+    df['expiry_date'] = pd.to_datetime(df['expiry_date'], format="ISO8601", errors='coerce').dt.tz_localize(None)
 
+    # Format the dates as requested (DD-MM-YYYY)
     df['order_date'] = df['order_date'].dt.strftime('%d-%m-%Y')
     df['expiry_date'] = df['expiry_date'].dt.strftime('%d-%m-%Y')
     tracker_summary = df.groupby(['po_number', 'facility_name'], as_index=False).agg({
