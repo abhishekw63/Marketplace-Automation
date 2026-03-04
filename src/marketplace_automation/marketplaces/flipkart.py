@@ -21,8 +21,8 @@ def process_flipkart(file_path):
     }
     df = df[list(cols_map.keys())].rename(columns=cols_map)
 
-    df["Order Date"] = pd.to_datetime(df["Order Date"], dayfirst=True, errors="coerce").dt.strftime('%d-%m-%Y')
-    df["Expiry Date"] = pd.to_datetime(df["Expiry Date"], dayfirst=True, errors="coerce").dt.strftime('%d-%m-%Y')
+    df["Order Date"] = pd.to_datetime(df["Order Date"], format="ISO8601", errors="coerce").dt.tz_localize(None).dt.strftime('%d-%m-%Y')
+    df["Expiry Date"] = pd.to_datetime(df["Expiry Date"], format="ISO8601", errors="coerce").dt.tz_localize(None).dt.strftime('%d-%m-%Y')
 
     FLIPKART_ALPHA_LOCS = [
         "bhi_pad_wh_nl_01nl",

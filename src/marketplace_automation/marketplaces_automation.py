@@ -272,6 +272,9 @@ class POReportApp(QMainWindow):
 
         card_layout.addLayout(combo_layout)
 
+        # Add explicit gap between the dropdown and the generate button
+        card_layout.addSpacing(15)
+
         # Generate Button (using && to render a single & in PyQt)
         self.generate_btn = QPushButton("Select File && Generate Report")
         self.generate_btn.setObjectName("generateBtn")
@@ -328,6 +331,9 @@ class POReportApp(QMainWindow):
         combo_layout.addWidget(select_lbl)
         combo_layout.addWidget(self.dump_marketplace_dropdown)
         card_layout.addLayout(combo_layout)
+
+        # Add explicit gap between the dropdown and the generate button
+        card_layout.addSpacing(15)
 
         self.dump_generate_btn = QPushButton("Select Files && Generate Dump")
         self.dump_generate_btn.setObjectName("generateBtn")
@@ -435,8 +441,8 @@ class POReportApp(QMainWindow):
         #marketplaceDropdown {
             padding-left: 16px;
             padding-right: 16px;
-            padding-top: 10px;
-            padding-bottom: 10px;
+            padding-top: 5px;
+            padding-bottom: 5px;
             font-size: 15px;
             font-weight: 500;
             color: #1F2937;
@@ -541,7 +547,9 @@ class POReportApp(QMainWindow):
             border-top-left-radius: 8px;
             border-top-right-radius: 8px;
             margin-right: 2px;
-            margin-left: 20px;
+        }}
+        QTabBar::tab:first {{
+            margin-left: 35px;
         }}
         QTabBar::tab:selected {{
             background: rgba(255, 255, 255, 0.85);
