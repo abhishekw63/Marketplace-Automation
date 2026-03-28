@@ -1,0 +1,9 @@
+.env
+build
+assets
+dist
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.gitignore
