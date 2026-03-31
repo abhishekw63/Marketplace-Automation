@@ -5,7 +5,8 @@ from datetime import datetime
 import os
 
 # ===================== LICENSE CONTROL =====================
-SOFTWARE_EXPIRY_DATE = "2026-03-28"  # YYYY-MM-DD
+SOFTWARE_EXPIRY_DATE = "2026-04-28"  # YYYY-MM-DD
+EXPIRY_WARNING_DAYS = 10
 
 def check_license():
     expiry = datetime.strptime(SOFTWARE_EXPIRY_DATE, "%Y-%m-%d").date()
@@ -18,6 +19,16 @@ def check_license():
         return False
     return True
 
+def check_expiry_warning():
+    expiry = datetime.strptime(SOFTWARE_EXPIRY_DATE, "%Y-%m-%d").date()
+    today = datetime.today().date()
+    days_left = (expiry - today).days
+    if 0 < days_left <= EXPIRY_WARNING_DAYS:
+        messagebox.showwarning(
+            "License Expiring Soon",
+            f"Your software license will expire in {days_left} day(s).\nPlease contact admin to renew."
+        )
+
 # ===================== MAIN APP =====================
 class InventoryAutomationApp:
     def __init__(self, root):
@@ -29,6 +40,9 @@ class InventoryAutomationApp:
         self.file_path = None
 
         self.build_ui()
+
+        # Show expiry warning on startup
+        self.root.after(500, check_expiry_warning)
 
     def build_ui(self):
         tk.Label(self.root, text="Upload Inventory File", font=("Arial", 12, "bold")).pack(pady=10)
@@ -151,5 +165,8 @@ class InventoryAutomationApp:
 # ===================== RUN =====================
 if __name__ == "__main__":
     root = tk.Tk()
-    app = InventoryAutomationApp(root)
-    root.mainloop()
+    if not check_license():
+        root.destroy()
+    else:
+        app = InventoryAutomationApp(root)
+        root.mainloop()
